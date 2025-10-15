@@ -1,3 +1,4 @@
+pip install -r requirements.txt
 instalar dependencias y luego ⤵️
 
 ```docker compose up  ```
