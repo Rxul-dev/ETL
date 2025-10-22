@@ -67,13 +67,11 @@ def main():
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
 
-    # 1) Cargar handles existentes para evitar UNIQUE violation
     print("Leyendo usuarios existentes...")
     existing_handles = set()
     for (h,) in db.execute(select(models.User.handle)).all():
         existing_handles.add(h)
 
-    # 2) Crear usuarios
     print(f"Creando usuarios (target: {USERS_COUNT})...")
     new_users = []
     for _ in range(USERS_COUNT):
@@ -90,7 +88,7 @@ def main():
         db.commit()
         new_users.clear()
 
-    # Obtener TODOS los usuarios (incluyendo los que ya existían)
+    # Obtener TODOS los usuarios 
     print("Cargando todos los usuarios para armar chats...")
     users = db.execute(select(models.User.id)).scalars().all()
     if len(users) < 2:
@@ -137,13 +135,11 @@ def main():
     total_msgs = 0
 
     for chat_id in all_chats:
-        # elegir un conjunto de posibles remitentes (miembros del chat)
         member_ids = db.execute(
             select(models.ChatMember.user_id).where(models.ChatMember.chat_id == chat_id)
         ).scalars().all()
 
         if not member_ids:
-            # fallback: si no hay miembros por algún motivo, escogemos 2 al azar
             member_ids = random.sample(users, k=2)
 
         n_msgs = random.randint(MSGS_MIN, MSGS_MAX)

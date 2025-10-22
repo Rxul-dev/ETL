@@ -27,7 +27,7 @@ db.add_all([
 db.add_all([
     models.Message(chat_id=chat.id, sender_id=u1.id, body="hola"),
     models.Message(chat_id=chat.id, sender_id=u2.id, body="pura vida"),
-    models.Message(chat_id=chat.id, sender_id=u1.id, body="¿listo para probar el ETL?"),
+    models.Message(chat_id=chat.id, sender_id=u1.id, body="waza"),
 ])
 
 db.commit()
