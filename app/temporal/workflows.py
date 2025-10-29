@@ -17,97 +17,80 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class ProcessChatWorkflow:
     @workflow.run
-    async def run(self, chat_id: int, page_size: int = 250) -> int:
-        """Extrae, transforma y carga mensajes de un chat"""
-        msgs = await workflow.execute_activity(
-            A.extract_messages_for_chat,
-            args=[chat_id, page_size],
-            start_to_close_timeout=timedelta(minutes=20),
-            retry_policy=retry_policy,
-        )
+    async def run(self, chat_id: int, total_pages: int, page_size: int = 250) -> int:
+        total_inserted = 0
+        for page in range(1, total_pages + 1):
+            inserted = await workflow.execute_activity(
+                A.etl_messages_page,
+                args=[chat_id, page, page_size],
+                start_to_close_timeout=timedelta(minutes=5),
+                retry_policy=retry_policy,
+            )
+            total_inserted += inserted
+        return total_inserted
 
-        msgs = await workflow.execute_activity(
-            A.transform_messages,
-            args=[msgs],
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=retry_policy,
-        )
-
-        inserted = await workflow.execute_activity(
-            A.load_messages,
-            args=[msgs],
-            start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=retry_policy,
-        )
-
-        return inserted
 @workflow.defn
 class EtlWorkflow:
     @workflow.run
     async def run(self, page_size: int = 250) -> Dict[str, Any]:
-    
         users = await workflow.execute_activity(
             A.extract_users,
-            args=[page_size],  
+            args=[page_size],
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=retry_policy,
         )
-
+        
         chats, members = await workflow.execute_activity(
             A.extract_chats_and_members,
-            args=[page_size],  
+            args=[page_size],
             start_to_close_timeout=timedelta(minutes=10),
             retry_policy=retry_policy,
         )
-
+        
         users = await workflow.execute_activity(
             A.transform_users,
-            args=[users], 
+            args=[users],
             start_to_close_timeout=timedelta(minutes=2),
             retry_policy=retry_policy,
         )
-
+        
         chats, members = await workflow.execute_activity(
             A.transform_chats_members,
-            args=[chats, members], 
+            args=[chats, members],
             start_to_close_timeout=timedelta(minutes=2),
             retry_policy=retry_policy,
         )
-
+        
         await workflow.execute_activity(
             A.load_dimensions,
-            args=[users, chats, members], 
+            args=[users, chats, members],
             start_to_close_timeout=timedelta(minutes=5),
             retry_policy=retry_policy,
         )
-
-        total_msgs = 0
+        
+        total_msgs = 0 
+        
         for c in chats:
             cid = c["id"]
-
-            msgs = await workflow.execute_activity(
-                A.extract_messages_for_chat,
-                args=[cid, page_size],  
-                start_to_close_timeout=timedelta(minutes=20),
+            meta = await workflow.execute_activity(
+                A.get_chat_meta,
+                args=[cid],
+                start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=retry_policy,
             )
-
-            msgs = await workflow.execute_activity(
-                A.transform_messages,
-                args=[msgs], 
-                start_to_close_timeout=timedelta(minutes=2),
+            total_pages = int(meta.get("total_pages", 1))
+            
+            inserted = await workflow.execute_child_workflow(
+                ProcessChatWorkflow.run,
+                args=[cid, total_pages, page_size],
+                id=f"etl-chat-{cid}-{workflow.uuid4()}",
+                task_queue="etl-task-queue",
                 retry_policy=retry_policy,
+                execution_timeout=timedelta(hours=1),
             )
-
-            inserted = await workflow.execute_activity(
-                A.load_messages,
-                args=[msgs],  
-                start_to_close_timeout=timedelta(minutes=10),
-                retry_policy=retry_policy,
-            )
-
+            
             total_msgs += inserted
-
+        
         return {
             "users": len(users),
             "chats": len(chats),

@@ -196,3 +196,34 @@ async def load_messages(msgs: List[Dict[str, Any]]) -> int:
         return len(msgs)
     finally:
         conn.close()
+
+@activity.defn(name="get_chat_meta")
+async def get_chat_meta(chat_id: int) -> Dict[str, Any]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{API_BASE_URL}/chats/{chat_id}/messages",
+            params={"page": 1, "page_size": 1},
+        )
+        r.raise_for_status()
+        data = r.json()
+        return {"total_pages": data.get("total_pages", 1)}
+
+
+@activity.defn(name="etl_messages_page")
+async def etl_messages_page(chat_id: int, page: int, page_size: int = 250) -> int:
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.get(
+            f"{API_BASE_URL}/chats/{chat_id}/messages",
+            params={"page": page, "page_size": page_size},
+        )
+        r.raise_for_status()
+        data = r.json()
+        msgs = data.get("items", [])
+
+    if not msgs:
+        return 0
+
+    msgs = await transform_messages(msgs)
+
+    inserted = await load_messages(msgs)
+    return inserted
