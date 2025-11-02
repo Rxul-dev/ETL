@@ -7,4 +7,6 @@ instalar dependencias y luego ⤵️
 
 ### probar ETL
 
-docker compose exec api python etl/run_etl.py
+
+
+``` curl -X POST "http://localhost:8000/etl?page_size=250" ```

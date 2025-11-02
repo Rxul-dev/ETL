@@ -1,13 +1,16 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 from enum import Enum
 
-class ChatType(str, Enum):
-    dm = 'dm'
-    group = 'group'
+# ------------------- Tipos base -------------------
 
-# ---- Users ----
+class ChatType(str, Enum):
+    dm = "dm"
+    group = "group"
+
+# ------------------- USERS -------------------
+
 class UserCreate(BaseModel):
     handle: str
     display_name: str
@@ -17,36 +20,41 @@ class UserOut(BaseModel):
     handle: str
     display_name: str
     created_at: datetime
+
     class Config:
         from_attributes = True
 
-# ---- Chats ----
+# ------------------- CHATS -------------------
+
 class ChatCreate(BaseModel):
     type: ChatType
     title: Optional[str] = None
-    members: List[int] = Field(default_factory=list, description="user_ids to add")
+    members: List[int] = Field(default_factory=list, description="IDs de usuarios que se añadirán al chat")
 
 class ChatOut(BaseModel):
     id: int
     type: ChatType
     title: Optional[str]
     created_at: datetime
+
     class Config:
         from_attributes = True
 
 class ChatMemberOut(BaseModel):
     chat_id: int
     user_id: int
-    role: str
+    role: Optional[str] = "member"
     joined_at: datetime
+
     class Config:
         from_attributes = True
 
-# ---- Messages ----
+# ------------------- MESSAGES -------------------
+
 class MessageCreate(BaseModel):
     body: str
-    reply_to_id: Optional[int] = None
     sender_id: int
+    reply_to_id: Optional[int] = None
 
 class MessageOut(BaseModel):
     id: int
@@ -54,12 +62,14 @@ class MessageOut(BaseModel):
     sender_id: Optional[int]
     body: str
     created_at: datetime
-    edited_at: Optional[datetime]
-    reply_to_id: Optional[int]
+    edited_at: Optional[datetime] = None
+    reply_to_id: Optional[int] = None
+
     class Config:
         from_attributes = True
 
-# ---- Reactions ----
+# ------------------- REACTIONS -------------------
+
 class ReactionCreate(BaseModel):
     emoji: str
     user_id: int
@@ -69,10 +79,12 @@ class ReactionOut(BaseModel):
     user_id: int
     emoji: str
     created_at: datetime
+
     class Config:
         from_attributes = True
 
-# ---- Pagination ----
+# ------------------- PAGINACIÓN -------------------
+
 class PageMeta(BaseModel):
     total: int
     page: int
@@ -80,11 +92,13 @@ class PageMeta(BaseModel):
     total_pages: int
 
 class Page(BaseModel):
-    items: list
+    """Modelo genérico para paginación (sin tipado de items)."""
+    items: List[Any]
     total: int
     page: int
     page_size: int
     total_pages: int
+
 class PageUsers(BaseModel):
     items: List[UserOut]
     total: int
@@ -119,19 +133,3 @@ class PageReactions(BaseModel):
     page: int
     page_size: int
     total_pages: int
-
-
-class PageUsers(BaseModel):
-    items: List[UserOut]; total: int; page: int; page_size: int; total_pages: int
-
-class PageChats(BaseModel):
-    items: List[ChatOut]; total: int; page: int; page_size: int; total_pages: int
-
-class PageChatMembers(BaseModel):
-    items: List[ChatMemberOut]; total: int; page: int; page_size: int; total_pages: int
-
-class PageMessages(BaseModel):
-    items: List[MessageOut]; total: int; page: int; page_size: int; total_pages: int
-
-class PageReactions(BaseModel):
-    items: List[ReactionOut]; total: int; page: int; page_size: int; total_pages: int

@@ -2,7 +2,7 @@ import os
 import asyncio
 from temporalio.client import Client
 from temporalio.worker import Worker
-from app.temporal.workflows import EtlWorkflow, ProcessChatWorkflow
+from app.temporal.workflows import EtlWorkflow, ProcessChatWorkflow, ProcessChatReactionsWorkflow
 from app.temporal import activities as A
 
 async def main():
@@ -13,20 +13,28 @@ async def main():
     worker = Worker(
         client,
         task_queue="etl-task-queue",
-        workflows=[EtlWorkflow, ProcessChatWorkflow],
+        workflows=[EtlWorkflow, ProcessChatWorkflow, ProcessChatReactionsWorkflow],
         activities=[
+            # Extract
             A.extract_users,
             A.extract_chats_and_members,
             A.extract_messages_for_chat,
+            # Transform
             A.transform_users,
             A.transform_chats_members,
             A.transform_messages,
+            A.transform_reactions,
+            # Load
             A.load_dimensions,
             A.load_messages,
+            A.load_reactions,
+            # Meta / Paginadas
             A.get_chat_meta,
             A.etl_messages_page,
+            A.etl_reactions_page,
         ],
     )
+
     print("ETL Worker started")
     await worker.run()
 
