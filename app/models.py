@@ -56,3 +56,28 @@ class Reaction(Base):
     __table_args__ = (
         Index('ix_reactions_message', 'message_id'),
     )
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    id = Column(Integer, primary_key=True)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
+    booking_type = Column(String(50))
+    booking_date = Column(DateTime)
+    status = Column(String(20), default="PENDING")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    message = relationship("Message")
+    user = relationship("User")
+    chat = relationship("Chat")
+    events = relationship("BookingEvent", back_populates="booking", cascade="all, delete-orphan")
+
+class BookingEvent(Base):
+    __tablename__ = "booking_events"
+    id = Column(Integer, primary_key=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
+    event_type = Column(String(30))  
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    booking = relationship("Booking", back_populates="events")

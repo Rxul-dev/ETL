@@ -8,7 +8,7 @@ from temporalio import activity
 import psycopg2
 import psycopg2.extras
 import dateutil.parser as dtp
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
@@ -382,3 +382,224 @@ async def etl_reactions_page(chat_id: int, page: int, page_size: int = 250) -> i
     all_reactions = await transform_reactions(all_reactions)
     inserted = await load_reactions(chat_id, all_reactions)
     return inserted
+
+
+# --- Booking activities ---
+@activity.defn(name="parse_booking_message")
+async def parse_booking_message(message: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Heurística simple para detectar intención de reserva a partir del cuerpo del mensaje.
+    Devuelve un diccionario JSON-serializable con tipo y fecha estimada.
+    """
+    body = (message.get("body") or "").lower()
+    booking_type = "generic"
+    if "sala" in body or "room" in body:
+        booking_type = "room"
+    elif "tour" in body:
+        booking_type = "tour"
+    elif "mesa" in body or "table" in body:
+        booking_type = "table"
+
+    when: datetime | None = None
+    if "mañana" in body or "tomorrow" in body:
+        when = datetime.utcnow() + timedelta(days=1)
+
+    return _to_json_safe({
+        "booking_type": booking_type,
+        "booking_date": when,
+    })
+
+
+@activity.defn(name="create_booking_from_message")
+async def create_booking_from_message(message: Dict[str, Any]) -> int:
+    """
+    Crea el booking vía tu API (no usa ORM local).
+    Espera que exista un endpoint POST /bookings que devuelva {id: ...}.
+    """
+    details = await parse_booking_message(message)
+    payload = {
+        "message_id": message["id"],
+        "user_id": message["sender_id"],
+        "chat_id": message["chat_id"],
+        "booking_type": details.get("booking_type"),
+        "booking_date": details.get("booking_date"),
+        "status": "PENDING",
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(f"{API_BASE_URL}/bookings", json=_to_json_safe(payload))
+        r.raise_for_status()
+        data = r.json()
+
+    return int(data["id"])
+
+
+@activity.defn(name="send_booking_confirmation")
+async def send_booking_confirmation(chat_id: int, booking_id: int) -> None:
+    """
+    Envía un mensaje automático al chat confirmando la creación del booking.
+    Espera que exista POST /chats/{chat_id}/messages.
+    """
+    body = f" Booking #{booking_id} creado exitosamente."
+    payload = {
+        "chat_id": chat_id,
+        "sender_id": 1,   
+        "body": body,
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(f"{API_BASE_URL}/chats/{chat_id}/messages", json=_to_json_safe(payload))
+        r.raise_for_status()
+
+# ---------- Bookings (ETL) ----------
+@activity.defn(name="extract_bookings")
+async def extract_bookings(page_size: int = 250) -> List[Dict[str, Any]]:
+    """Extrae bookings desde la API."""
+    items: List[Dict[str, Any]] = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        page = 1
+        while True:
+            r = await client.get(f"{API_BASE_URL}/bookings", params={"page": page, "page_size": page_size})
+            r.raise_for_status()
+            data = r.json()
+            items.extend(data["items"])
+            if page >= data["total_pages"]:
+                break
+            page += 1
+            activity.heartbeat()
+    return _to_json_safe(items)
+
+
+@activity.defn(name="transform_bookings")
+async def transform_bookings(bookings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Convierte fechas y normaliza campos de bookings."""
+    for b in bookings:
+        if isinstance(b.get("created_at"), (datetime, date)):
+            b["created_at"] = b["created_at"].isoformat()
+        if isinstance(b.get("booking_date"), (datetime, date)):
+            b["booking_date"] = b["booking_date"].isoformat()
+    return _to_json_safe(bookings)
+
+
+@activity.defn(name="load_bookings")
+async def load_bookings(bookings: List[Dict[str, Any]]) -> int:
+    """Carga los bookings en la tabla fact_bookings del warehouse."""
+    if not bookings:
+        return 0
+    conn = _pg(); conn.autocommit = False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS fact_bookings(
+              booking_id INT PRIMARY KEY,
+              chat_id INT,
+              user_id INT,
+              message_id INT,
+              booking_type TEXT,
+              booking_date TIMESTAMPTZ,
+              status TEXT,
+              created_at TIMESTAMPTZ,
+              created_day DATE,
+              created_hour INT
+            );
+            """)
+            def row(b):
+                created = _parse_ts(b.get("created_at"))
+                return (
+                    b["id"], b.get("chat_id"), b.get("user_id"), b.get("message_id"),
+                    b.get("booking_type"), _parse_ts(b.get("booking_date")),
+                    b.get("status"), created,
+                    created.date() if created else None,
+                    created.hour if created else None
+                )
+            psycopg2.extras.execute_batch(
+                cur,
+                """INSERT INTO fact_bookings
+                   (booking_id, chat_id, user_id, message_id, booking_type, booking_date,
+                    status, created_at, created_day, created_hour)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (booking_id) DO UPDATE SET
+                     booking_type=EXCLUDED.booking_type,
+                     booking_date=EXCLUDED.booking_date,
+                     status=EXCLUDED.status,
+                     created_at=EXCLUDED.created_at,
+                     created_day=EXCLUDED.created_day,
+                     created_hour=EXCLUDED.created_hour""",
+                [row(b) for b in bookings],
+                page_size=2000
+            )
+        conn.commit()
+        return len(bookings)
+    finally:
+        conn.close()
+
+
+# ---------- Booking Events (ETL) ----------
+@activity.defn(name="extract_booking_events")
+async def extract_booking_events(page_size: int = 250) -> List[Dict[str, Any]]:
+    """Extrae eventos de reservas desde la API."""
+    items: List[Dict[str, Any]] = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        page = 1
+        while True:
+            r = await client.get(f"{API_BASE_URL}/booking-events", params={"page": page, "page_size": page_size})
+            r.raise_for_status()
+            data = r.json()
+            items.extend(data["items"])
+            if page >= data["total_pages"]:
+                break
+            page += 1
+            activity.heartbeat()
+    return _to_json_safe(items)
+
+
+@activity.defn(name="transform_booking_events")
+async def transform_booking_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Convierte fechas de los eventos."""
+    for e in events:
+        if isinstance(e.get("created_at"), (datetime, date)):
+            e["created_at"] = e["created_at"].isoformat()
+    return _to_json_safe(events)
+
+
+@activity.defn(name="load_booking_events")
+async def load_booking_events(events: List[Dict[str, Any]]) -> int:
+    """Carga los eventos en la tabla fact_booking_events."""
+    if not events:
+        return 0
+    conn = _pg(); conn.autocommit = False
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS fact_booking_events(
+              event_id SERIAL PRIMARY KEY,
+              booking_id INT,
+              event_type TEXT,
+              created_at TIMESTAMPTZ,
+              created_day DATE,
+              created_hour INT
+            );
+            """)
+            def row(e):
+                created = _parse_ts(e.get("created_at"))
+                return (
+                    e.get("id"),
+                    e.get("booking_id"),
+                    e.get("event_type"),
+                    created,
+                    created.date() if created else None,
+                    created.hour if created else None
+                )
+            psycopg2.extras.execute_batch(
+                cur,
+                """INSERT INTO fact_booking_events
+                   (event_id, booking_id, event_type, created_at, created_day, created_hour)
+                   VALUES (%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (event_id) DO NOTHING""",
+                [row(e) for e in events],
+                page_size=3000
+            )
+        conn.commit()
+        return len(events)
+    finally:
+        conn.close()
