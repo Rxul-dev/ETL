@@ -96,12 +96,14 @@ services:
 
   etl-worker:
     build: .
-    command: python -m app.temporal.worker
+    # Fuerza a ejecutar el worker (no Uvicorn)
+    entrypoint: ["python","-m","app.temporal.worker"]
     environment:
       TEMPORAL_TARGET: temporal:7233
       TEMPORAL_NAMESPACE: default
       API_BASE_URL: http://api:8000
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/messaging
+      # Para psycopg2.connect en activities usamos 'postgresql://'
       WAREHOUSE_URL: postgresql://postgres:postgres@dw:5432/warehouse
     depends_on:
       db:
@@ -114,15 +116,15 @@ services:
         condition: service_started
     volumes:
       - .:/app
+    restart: unless-stopped
 
-  # ===== SPARK MASTER =====
   spark-master:
     image: apache/spark:3.5.1
     container_name: spark-master
     command: ["/opt/spark/bin/spark-class","org.apache.spark.deploy.master.Master","--host","spark-master"]
     ports:
-      - "8081:8080"   # Spark Master UI: http://localhost:8081
-      - "7077:7077"   # RPC master
+      - "8081:8080"
+      - "7077:7077"
     volumes:
       - ./spark/apps:/opt/spark-apps
       - ./spark/data:/opt/spark-data
@@ -130,7 +132,6 @@ services:
       dw:
         condition: service_healthy
 
-  # ===== SPARK WORKER =====
   spark-worker:
     image: apache/spark:3.5.1
     container_name: spark-worker
@@ -144,7 +145,6 @@ services:
     depends_on:
       - spark-master
 
-  # ===== METABASE =====
   metabase:
     image: metabase/metabase:latest
     container_name: metabase
@@ -165,7 +165,6 @@ services:
       dw:
         condition: service_healthy
 
-  # ===== BASE DE DATOS PARA METABASE =====
   metabase-db:
     image: postgres:16
     container_name: metabase-db
@@ -180,7 +179,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
 volumes:
   pgdata:
   pgdata_dw:
