@@ -179,9 +179,131 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Observabilidad - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - postgres-exporter
+      - postgres-exporter-dw
+      - postgres-exporter-metabase
+    restart: unless-stopped
+
+  # Observabilidad - Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  # Observabilidad - Promtail
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # Observabilidad - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+
+  # PostgreSQL Exporter - Base de datos principal
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/messaging?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # PostgreSQL Exporter - Data Warehouse
+  postgres-exporter-dw:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter-dw
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@dw:5432/warehouse?sslmode=disable"
+    ports:
+      - "9188:9187"
+    depends_on:
+      - dw
+    restart: unless-stopped
+
+  # PostgreSQL Exporter - Metabase DB
+  postgres-exporter-metabase:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter-metabase
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@metabase-db:5432/metabase?sslmode=disable"
+    ports:
+      - "9189:9187"
+    depends_on:
+      - metabase-db
+    restart: unless-stopped
+
+  # Node Exporter - Métricas del sistema
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    restart: unless-stopped
+
 volumes:
   pgdata:
   pgdata_dw:
   temporal_pg:
   metabase-data:
   metabase-db-data:
+  prometheus-data:
+  loki-data:
+  grafana-data:
