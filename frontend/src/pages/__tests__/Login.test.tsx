@@ -3,12 +3,17 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import Login from '../Login'
-import { usersApi } from '../../api/client'
+import * as apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 
 const mockNavigate = vi.fn()
 
-vi.mock('../../api/client')
+vi.mock('../../api/client', () => ({
+  usersApi: {
+    create: vi.fn(),
+  },
+}))
+
 vi.mock('../../store/authStore')
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -48,7 +53,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
     
-    vi.mocked(usersApi.create).mockResolvedValue(mockUser)
+    vi.mocked(apiClient.usersApi.create).mockResolvedValue(mockUser)
 
     render(
       <BrowserRouter>
@@ -59,24 +64,31 @@ describe('Login', () => {
     await act(async () => {
       await user.type(screen.getByLabelText(/handle/i), 'testuser')
       await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
+    })
+
+    await act(async () => {
       await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
     })
 
     await waitFor(() => {
-      expect(usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
+      expect(apiClient.usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
     })
     
     // Esperar a que se complete el login
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalled()
-    }, { timeout: 2000 })
+      expect(mockLogin).toHaveBeenCalledWith({
+        id: mockUser.id,
+        handle: mockUser.handle,
+        display_name: mockUser.display_name,
+      })
+    }, { timeout: 3000 })
   })
 
   it('shows error on duplicate handle', async () => {
     const user = userEvent.setup()
     const error: any = { response: { status: 409 } }
     
-    vi.mocked(usersApi.create).mockRejectedValue(error)
+    vi.mocked(apiClient.usersApi.create).mockRejectedValue(error)
 
     render(
       <BrowserRouter>

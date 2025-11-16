@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import ChatList from '../ChatList'
-import { chatsApi } from '../../api/client'
+import * as apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 
-vi.mock('../../api/client')
+vi.mock('../../api/client', () => ({
+  chatsApi: {
+    list: vi.fn(),
+  },
+}))
+
 vi.mock('../../store/authStore')
 
 describe('ChatList', () => {
@@ -14,18 +19,20 @@ describe('ChatList', () => {
     { id: 1, type: 'group' as const, title: 'Chat 1', created_at: new Date().toISOString() },
     { id: 2, type: 'dm' as const, title: null, created_at: new Date().toISOString() },
   ]
+  const mockLogout = vi.fn()
 
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(useAuthStore).mockReturnValue({
       user: mockUser,
       isAuthenticated: true,
       login: vi.fn(),
-      logout: vi.fn(),
+      logout: mockLogout,
     } as any)
   })
 
   it('renders chat list', async () => {
-    vi.mocked(chatsApi.list).mockResolvedValue({
+    vi.mocked(apiClient.chatsApi.list).mockResolvedValue({
       items: mockChats,
       total: 2,
       page: 1,
@@ -45,7 +52,7 @@ describe('ChatList', () => {
   })
 
   it('shows loading state', () => {
-    vi.mocked(chatsApi.list).mockImplementation(() => new Promise(() => {}))
+    vi.mocked(apiClient.chatsApi.list).mockImplementation(() => new Promise(() => {}))
 
     render(
       <BrowserRouter>
@@ -57,7 +64,7 @@ describe('ChatList', () => {
   })
 
   it('shows empty state when no chats', async () => {
-    vi.mocked(chatsApi.list).mockResolvedValue({
+    vi.mocked(apiClient.chatsApi.list).mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
@@ -76,4 +83,3 @@ describe('ChatList', () => {
     })
   })
 })
-
