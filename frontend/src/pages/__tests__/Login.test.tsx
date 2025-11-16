@@ -1,13 +1,35 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
-import * as apiClient from '../../api/client'
-import { useAuthStore } from '../../store/authStore'
 
 const mockNavigate = vi.fn()
+const mockUsersApiCreate = vi.fn()
+const mockLogin = vi.fn()
 
-vi.mock('../../store/authStore')
+// Mock del módulo completo ANTES de cualquier importación
+vi.mock('../../api/client', () => ({
+  apiClient: {},
+  usersApi: {
+    create: (...args: any[]) => mockUsersApiCreate(...args),
+    get: vi.fn(),
+    list: vi.fn(),
+  },
+  chatsApi: {
+    create: vi.fn(),
+    get: vi.fn(),
+    list: vi.fn(),
+  },
+  messagesApi: {
+    send: vi.fn(),
+    list: vi.fn(),
+  },
+}))
+
+vi.mock('../../store/authStore', () => ({
+  useAuthStore: vi.fn(),
+}))
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
   return {
@@ -16,19 +38,16 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
-// Importar el componente después de configurar los mocks básicos
+// Importar después de los mocks
 import Login from '../Login'
+import { useAuthStore } from '../../store/authStore'
 
 describe('Login', () => {
-  const mockLogin = vi.fn()
-  let createSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
-    
-    // Usar spyOn para mockear después de importar
-    createSpy = vi.spyOn(apiClient.usersApi, 'create')
+    mockUsersApiCreate.mockClear()
+    mockLogin.mockClear()
     
     vi.mocked(useAuthStore).mockReturnValue({
       user: null,
@@ -36,10 +55,6 @@ describe('Login', () => {
       login: mockLogin,
       logout: vi.fn(),
     } as any)
-  })
-
-  afterEach(() => {
-    createSpy.mockRestore()
   })
 
   it('renders login form', () => {
@@ -58,7 +73,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
     
-    createSpy.mockResolvedValue(mockUser)
+    mockUsersApiCreate.mockResolvedValue(mockUser)
 
     render(
       <BrowserRouter>
@@ -71,7 +86,7 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(createSpy).toHaveBeenCalledWith('testuser', 'Test User')
+      expect(mockUsersApiCreate).toHaveBeenCalledWith('testuser', 'Test User')
     }, { timeout: 3000 })
     
     // Esperar a que se complete el login
@@ -88,7 +103,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const error: any = { response: { status: 409 } }
     
-    createSpy.mockRejectedValue(error)
+    mockUsersApiCreate.mockRejectedValue(error)
 
     render(
       <BrowserRouter>
