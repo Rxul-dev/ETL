@@ -3,15 +3,27 @@ from fastapi.testclient import TestClient
 from app.websocket_manager import ConnectionManager
 import json
 
-def test_websocket_connection(client, sample_user_data, sample_chat_data):
+def test_websocket_connection(client, db, sample_user_data, sample_chat_data):
     """Test conexión WebSocket básica"""
-    # Crear usuario y chat
-    user_response = client.post("/users", json=sample_user_data)
-    user_id = user_response.json()["id"]
+    # Crear usuario y chat directamente en la base de datos para asegurar consistencia
+    from app import models
     
-    chat_data = {**sample_chat_data, "members": [user_id]}
-    chat_response = client.post("/chats", json=chat_data)
-    chat_id = chat_response.json()["id"]
+    user = models.User(handle=sample_user_data["handle"], display_name=sample_user_data["display_name"])
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    user_id = user.id
+    
+    chat = models.Chat(type=sample_chat_data["type"], title=sample_chat_data["title"])
+    db.add(chat)
+    db.flush()
+    
+    # Agregar miembro al chat
+    member = models.ChatMember(chat_id=chat.id, user_id=user_id)
+    db.add(member)
+    db.commit()
+    db.refresh(chat)
+    chat_id = chat.id
     
     # Conectar WebSocket
     with client.websocket_connect(f"/ws/chats/{chat_id}?user_id={user_id}") as websocket:

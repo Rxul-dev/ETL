@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import Login from '../Login'
 import { usersApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 
+const mockNavigate = vi.fn()
+
 vi.mock('../../api/client')
 vi.mock('../../store/authStore')
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
-  const mockNavigate = vi.fn()
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -22,6 +23,7 @@ describe('Login', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockNavigate.mockClear()
     vi.mocked(useAuthStore).mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -54,17 +56,20 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    await act(async () => {
+      await user.type(screen.getByLabelText(/handle/i), 'testuser')
+      await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
+      await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    })
 
     await waitFor(() => {
       expect(usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
     })
     
+    // Esperar a que se complete el login
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalled()
-    })
+    }, { timeout: 2000 })
   })
 
   it('shows error on duplicate handle', async () => {
@@ -79,9 +84,11 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    await act(async () => {
+      await user.type(screen.getByLabelText(/handle/i), 'testuser')
+      await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
+      await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    })
 
     await waitFor(() => {
       expect(screen.getByText(/este handle ya existe/i)).toBeInTheDocument()
