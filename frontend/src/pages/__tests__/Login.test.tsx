@@ -1,23 +1,33 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import Login from '../Login'
 import { usersApi } from '../../api/client'
+import { useAuthStore } from '../../store/authStore'
 
 vi.mock('../../api/client')
+vi.mock('../../store/authStore')
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  const mockNavigate = vi.fn()
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
 
 describe('Login', () => {
-  const mockNavigate = vi.fn()
-  
+  const mockLogin = vi.fn()
+
   beforeEach(() => {
-    vi.mock('react-router-dom', async () => {
-      const actual = await vi.importActual('react-router-dom')
-      return {
-        ...actual,
-        useNavigate: () => mockNavigate,
-      }
-    })
+    vi.clearAllMocks()
+    vi.mocked(useAuthStore).mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      login: mockLogin,
+      logout: vi.fn(),
+    } as any)
   })
 
   it('renders login form', () => {
@@ -51,11 +61,15 @@ describe('Login', () => {
     await waitFor(() => {
       expect(usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
     })
+    
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalled()
+    })
   })
 
   it('shows error on duplicate handle', async () => {
     const user = userEvent.setup()
-    const error = { response: { status: 409 } }
+    const error: any = { response: { status: 409 } }
     
     vi.mocked(usersApi.create).mockRejectedValue(error)
 
@@ -74,4 +88,3 @@ describe('Login', () => {
     })
   })
 })
-
