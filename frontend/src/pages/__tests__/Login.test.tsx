@@ -1,18 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
-import Login from '../Login'
 import * as apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 
 const mockNavigate = vi.fn()
-
-vi.mock('../../api/client', () => ({
-  usersApi: {
-    create: vi.fn(),
-  },
-}))
 
 vi.mock('../../store/authStore')
 vi.mock('react-router-dom', async () => {
@@ -23,18 +16,30 @@ vi.mock('react-router-dom', async () => {
   }
 })
 
+// Importar el componente después de configurar los mocks básicos
+import Login from '../Login'
+
 describe('Login', () => {
   const mockLogin = vi.fn()
+  let createSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    
+    // Usar spyOn para mockear después de importar
+    createSpy = vi.spyOn(apiClient.usersApi, 'create')
+    
     vi.mocked(useAuthStore).mockReturnValue({
       user: null,
       isAuthenticated: false,
       login: mockLogin,
       logout: vi.fn(),
     } as any)
+  })
+
+  afterEach(() => {
+    createSpy.mockRestore()
   })
 
   it('renders login form', () => {
@@ -53,7 +58,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
     
-    vi.mocked(apiClient.usersApi.create).mockResolvedValue(mockUser)
+    createSpy.mockResolvedValue(mockUser)
 
     render(
       <BrowserRouter>
@@ -61,18 +66,13 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await act(async () => {
-      await user.type(screen.getByLabelText(/handle/i), 'testuser')
-      await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    })
-
-    await act(async () => {
-      await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
-    })
+    await user.type(screen.getByLabelText(/handle/i), 'testuser')
+    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
+    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(apiClient.usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
-    })
+      expect(createSpy).toHaveBeenCalledWith('testuser', 'Test User')
+    }, { timeout: 3000 })
     
     // Esperar a que se complete el login
     await waitFor(() => {
@@ -88,7 +88,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const error: any = { response: { status: 409 } }
     
-    vi.mocked(apiClient.usersApi.create).mockRejectedValue(error)
+    createSpy.mockRejectedValue(error)
 
     render(
       <BrowserRouter>
@@ -96,14 +96,12 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await act(async () => {
-      await user.type(screen.getByLabelText(/handle/i), 'testuser')
-      await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-      await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
-    })
+    await user.type(screen.getByLabelText(/handle/i), 'testuser')
+    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
+    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/este handle ya existe/i)).toBeInTheDocument()
-    })
+    }, { timeout: 3000 })
   })
 })
