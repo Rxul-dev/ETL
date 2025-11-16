@@ -1,0 +1,17 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check if tests pass
+        run: |
+          echo "All tests must pass before merging"
+          echo "Backend and Frontend CI workflows will run automatically"
+

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import Base, engine
-from app.routers import users, chats, messages, reactions, etl_router, bookings as bookings_router, booking_events
+from app.routers import users, chats, messages, reactions, etl_router, bookings as bookings_router, booking_events, websocket
 from prometheus_fastapi_instrumentator import Instrumentator
 import logging
 
@@ -26,6 +26,7 @@ app.include_router(reactions.router)
 app.include_router(etl_router.router)
 app.include_router(bookings_router.router)
 app.include_router(booking_events.router)
+app.include_router(websocket.router)
 
 @app.get("/")
 def root():
