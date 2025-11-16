@@ -3,15 +3,20 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 
-const mockNavigate = vi.fn()
-const mockUsersApiCreate = vi.fn()
-const mockLogin = vi.fn()
+// Usar vi.hoisted() para asegurar que los mocks funcionen correctamente
+const { mockNavigate, mockLogin, mockUsersApiCreate } = vi.hoisted(() => {
+  return {
+    mockNavigate: vi.fn(),
+    mockLogin: vi.fn(),
+    mockUsersApiCreate: vi.fn(),
+  }
+})
 
 // Mock del módulo completo ANTES de cualquier importación
 vi.mock('../../api/client', () => ({
   apiClient: {},
   usersApi: {
-    create: (...args: any[]) => mockUsersApiCreate(...args),
+    create: mockUsersApiCreate,
     get: vi.fn(),
     list: vi.fn(),
   },
@@ -81,9 +86,15 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    const handleInput = screen.getByLabelText(/handle/i)
+    const displayNameInput = screen.getByLabelText(/nombre para mostrar/i)
+    const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
+
+    await user.clear(handleInput)
+    await user.type(handleInput, 'testuser')
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Test User')
+    await user.click(submitButton)
 
     await waitFor(() => {
       expect(mockUsersApiCreate).toHaveBeenCalledWith('testuser', 'Test User')
@@ -111,9 +122,15 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    const handleInput = screen.getByLabelText(/handle/i)
+    const displayNameInput = screen.getByLabelText(/nombre para mostrar/i)
+    const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
+
+    await user.clear(handleInput)
+    await user.type(handleInput, 'testuser')
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Test User')
+    await user.click(submitButton)
 
     await waitFor(() => {
       expect(screen.getByText(/este handle ya existe/i)).toBeInTheDocument()
