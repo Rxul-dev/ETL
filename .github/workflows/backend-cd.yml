@@ -8,12 +8,24 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.HETZNER_HOST != ''
     
     steps:
       - uses: actions/checkout@v4
       
+      - name: Check deployment secrets
+        run: |
+          if [ -z "${{ secrets.HETZNER_HOST }}" ]; then
+            echo "⚠️ HETZNER_HOST secret is not configured. Skipping deployment."
+            echo "To enable deployment, configure the following secrets in GitHub:"
+            echo "  - HETZNER_HOST"
+            echo "  - HETZNER_USER"
+            echo "  - HETZNER_SSH_KEY"
+            exit 0
+          fi
+      
       - name: Deploy to Hetzner
+        if: secrets.HETZNER_HOST != ''
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HETZNER_HOST }}

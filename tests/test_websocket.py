@@ -25,9 +25,15 @@ def test_websocket_connection(client, db, sample_user_data, sample_chat_data):
     db.add(member)
     db.commit()
     
-    # Refrescar para asegurar que los objetos estén actualizados
-    db.refresh(chat)
-    db.refresh(user)
+    # Expirar todos los objetos para forzar que se recarguen de la base de datos
+    db.expire_all()
+    
+    # Verificar que el chat existe en la sesión actual
+    chat_check = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
+    assert chat_check is not None, "Chat should exist before WebSocket connection"
+    
+    member_check = db.query(models.ChatMember).filter_by(chat_id=chat_id, user_id=user_id).first()
+    assert member_check is not None, "Member should exist before WebSocket connection"
     
     # Conectar WebSocket
     with client.websocket_connect(f"/ws/chats/{chat_id}?user_id={user_id}") as websocket:
@@ -64,4 +70,3 @@ def test_websocket_get_connections(client, sample_user_data, sample_chat_data):
     data = response.json()
     assert "chat_id" in data
     assert "active_connections" in data
-

@@ -10,12 +10,25 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.HETZNER_HOST != ''
     
     steps:
       - uses: actions/checkout@v4
       
+      - name: Check deployment secrets
+        run: |
+          if [ -z "${{ secrets.HETZNER_HOST }}" ]; then
+            echo "⚠️ HETZNER_HOST secret is not configured. Skipping deployment."
+            echo "To enable deployment, configure the following secrets in GitHub:"
+            echo "  - HETZNER_HOST"
+            echo "  - HETZNER_USER"
+            echo "  - HETZNER_SSH_KEY"
+            echo "  - VITE_API_URL (optional, for frontend build)"
+            exit 0
+          fi
+      
       - name: Set up Node.js
+        if: secrets.HETZNER_HOST != ''
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -23,16 +36,24 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       
       - name: Install dependencies
+        if: secrets.HETZNER_HOST != ''
         working-directory: ./frontend
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       
       - name: Build
+        if: secrets.HETZNER_HOST != ''
         working-directory: ./frontend
         run: npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
       
       - name: Deploy to Hetzner
+        if: secrets.HETZNER_HOST != ''
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -42,6 +63,7 @@ jobs:
           target: "/opt/rxul-chat-frontend/dist"
       
       - name: Restart frontend service
+        if: secrets.HETZNER_HOST != ''
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HETZNER_HOST }}

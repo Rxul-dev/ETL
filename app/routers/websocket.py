@@ -22,6 +22,8 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: int, user_id: int = 
     # Verificar que el chat existe
     db = next(get_db())
     try:
+        # Expirar objetos para forzar recarga desde la base de datos
+        db.expire_all()
         # Usar query en lugar de get para asegurar que busca en la base de datos
         chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
         if not chat:
