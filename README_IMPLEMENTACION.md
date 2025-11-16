@@ -145,7 +145,18 @@ Configurar en Settings > Secrets:
 - `HETZNER_HOST`: IP o dominio del servidor
 - `HETZNER_USER`: Usuario SSH
 - `HETZNER_SSH_KEY`: Clave privada SSH
-- `VITE_API_URL`: URL de la API (para build del frontend)
+- `VITE_API_URL`: URL de la API para producción (ej: `https://api.tudominio.com` o `http://tu-servidor:8000`)
+
+### Configuración de URLs
+
+**Backend:**
+- Desarrollo local: `http://localhost:8000`
+- Docker Compose: `http://localhost:8000` (puerto 8000)
+- Producción: Configurar según tu servidor
+
+**Frontend:**
+- Desarrollo: No requiere configuración (usa proxy de Vite)
+- Producción: Configurar `VITE_API_URL` en el archivo `.env` antes del build
 
 ## Estructura de Archivos
 
