@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { messagesApi, chatsApi, Message, Chat } from '../api/client'
+import { messagesApi, chatsApi, usersApi, Message, Chat, User } from '../api/client'
 import { WebSocketService } from '../services/websocket'
 import './ChatRoom.css'
 
@@ -11,7 +11,11 @@ function ChatRoom() {
   const user = useAuthStore((state) => state.user)
   const [messages, setMessages] = useState<Message[]>([])
   const [chat, setChat] = useState<Chat | null>(null)
+  const [chatMembers, setChatMembers] = useState<{ user_id: number }[]>([])
+  const [otherUser, setOtherUser] = useState<User | null>(null)
+  const [usersMap, setUsersMap] = useState<Map<number, User>>(new Map())
   const [newMessage, setNewMessage] = useState('')
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -27,6 +31,28 @@ function ChatRoom() {
         const chatData = await chatsApi.get(Number(chatId))
         if (isMounted) {
           setChat(chatData)
+          
+          // Si es un DM, cargar los miembros para obtener información del otro usuario
+          if (chatData.type === 'dm' && user) {
+            try {
+              const membersResponse = await chatsApi.getMembers(Number(chatId))
+              const members = membersResponse.items
+              setChatMembers(members)
+              
+              // Encontrar el otro usuario (no el usuario actual)
+              const otherUserId = members.find((m) => m.user_id !== user.id)?.user_id
+              if (otherUserId) {
+                try {
+                  const otherUserData = await usersApi.get(otherUserId)
+                  setOtherUser(otherUserData)
+                } catch (err) {
+                  console.error('Error loading other user:', err)
+                }
+              }
+            } catch (err) {
+              console.error('Error loading chat members:', err)
+            }
+          }
         }
       } catch (err) {
         console.error('Error loading chat:', err)
@@ -37,7 +63,25 @@ function ChatRoom() {
       try {
         const response = await messagesApi.list(Number(chatId), 1, 100)
         if (isMounted) {
-          setMessages(response.items.reverse()) // Mostrar más antiguos primero
+          const messagesList = response.items.reverse() // Mostrar más antiguos primero
+          setMessages(messagesList)
+          
+          // Cargar información de usuarios para los mensajes
+          const userIds = new Set<number>()
+          messagesList.forEach((msg) => {
+            if (msg.sender_id) userIds.add(msg.sender_id)
+          })
+          
+          // Cargar usuarios en paralelo
+          const usersPromises = Array.from(userIds).map((uid) =>
+            usersApi.get(uid).catch(() => null)
+          )
+          const users = await Promise.all(usersPromises)
+          const newUsersMap = new Map<number, User>()
+          users.forEach((u) => {
+            if (u) newUsersMap.set(u.id, u)
+          })
+          setUsersMap(newUsersMap)
         }
       } catch (err) {
         console.error('Error loading messages:', err)
