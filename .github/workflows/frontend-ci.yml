@@ -11,7 +11,8 @@ on:
       - develop
 
 jobs:
-  test:
+  frontend-test:          
+    name: frontend-test   
     runs-on: ubuntu-latest
     
     steps:

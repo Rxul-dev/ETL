@@ -11,7 +11,8 @@ on:
       - develop
 
 jobs:
-  test:
+  backend-test:        
+    name: backend-test 
     runs-on: ubuntu-latest
     
     services:
@@ -46,7 +47,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/messaging
-          WAREHOUSE_URL: ""  # Opcional para tests
+          WAREHOUSE_URL: postgresql://postgres:postgres@dw:5432/warehouse
         run: |
           pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
       
