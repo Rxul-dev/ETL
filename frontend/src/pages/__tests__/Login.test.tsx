@@ -4,11 +4,20 @@ import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 
 // Usar vi.hoisted() para asegurar que los mocks funcionen correctamente
-const { mockNavigate, mockLogin, mockUsersApiCreate } = vi.hoisted(() => {
+const { mockNavigate, mockLogin, mockUsersApiCreate, mockStoreRef } = vi.hoisted(() => {
+  const storeRef: { current: any } = {
+    current: {
+      user: null,
+      isAuthenticated: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+    },
+  }
   return {
     mockNavigate: vi.fn(),
     mockLogin: vi.fn(),
     mockUsersApiCreate: vi.fn(),
+    mockStoreRef: storeRef,
   }
 })
 
@@ -31,9 +40,17 @@ vi.mock('../../api/client', () => ({
   },
 }))
 
-vi.mock('../../store/authStore', () => ({
-  useAuthStore: vi.fn(),
-}))
+vi.mock('../../store/authStore', () => {
+  return {
+    useAuthStore: vi.fn((selector?: (state: any) => any) => {
+      const store = mockStoreRef.current
+      if (selector) {
+        return selector(store)
+      }
+      return store
+    }),
+  }
+})
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -54,12 +71,13 @@ describe('Login', () => {
     mockUsersApiCreate.mockClear()
     mockLogin.mockClear()
     
-    vi.mocked(useAuthStore).mockReturnValue({
+    // Actualizar el mockStore con nuevos mocks para cada test
+    mockStoreRef.current = {
       user: null,
       isAuthenticated: false,
       login: mockLogin,
       logout: vi.fn(),
-    } as any)
+    }
   })
 
   it('renders login form', () => {
