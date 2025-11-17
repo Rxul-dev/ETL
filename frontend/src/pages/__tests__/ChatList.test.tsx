@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
-import ChatList from '../ChatList'
-import { chatsApi } from '../../api/client'
+import * as apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 
-vi.mock('../../api/client')
 vi.mock('../../store/authStore')
+
+// Importar el componente después de configurar los mocks básicos
+import ChatList from '../ChatList'
 
 describe('ChatList', () => {
   const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User' }
@@ -14,18 +15,26 @@ describe('ChatList', () => {
     { id: 1, type: 'group' as const, title: 'Chat 1', created_at: new Date().toISOString() },
     { id: 2, type: 'dm' as const, title: null, created_at: new Date().toISOString() },
   ]
+  const mockLogout = vi.fn()
+  let listSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    mockLogout.mockClear()
+    
+    // Usar spyOn para mockear después de importar
+    listSpy = vi.spyOn(apiClient.chatsApi, 'list')
+    
     vi.mocked(useAuthStore).mockReturnValue({
       user: mockUser,
       isAuthenticated: true,
       login: vi.fn(),
-      logout: vi.fn(),
+      logout: mockLogout,
     } as any)
   })
 
   it('renders chat list', async () => {
-    vi.mocked(chatsApi.list).mockResolvedValue({
+    listSpy.mockResolvedValue({
       items: mockChats,
       total: 2,
       page: 1,
@@ -45,7 +54,7 @@ describe('ChatList', () => {
   })
 
   it('shows loading state', () => {
-    vi.mocked(chatsApi.list).mockImplementation(() => new Promise(() => {}))
+    listSpy.mockImplementation(() => new Promise(() => {}))
 
     render(
       <BrowserRouter>
@@ -57,7 +66,7 @@ describe('ChatList', () => {
   })
 
   it('shows empty state when no chats', async () => {
-    vi.mocked(chatsApi.list).mockResolvedValue({
+    listSpy.mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
@@ -76,4 +85,3 @@ describe('ChatList', () => {
     })
   })
 })
-

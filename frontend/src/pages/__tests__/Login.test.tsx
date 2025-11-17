@@ -1,23 +1,83 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
-import Login from '../Login'
-import { usersApi } from '../../api/client'
 
-vi.mock('../../api/client')
+// Usar vi.hoisted() para asegurar que los mocks funcionen correctamente
+const { mockNavigate, mockLogin, mockUsersApiCreate, mockStoreRef } = vi.hoisted(() => {
+  const storeRef: { current: any } = {
+    current: {
+      user: null,
+      isAuthenticated: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+    },
+  }
+  return {
+    mockNavigate: vi.fn(),
+    mockLogin: vi.fn(),
+    mockUsersApiCreate: vi.fn(),
+    mockStoreRef: storeRef,
+  }
+})
+
+// Mock del módulo completo ANTES de cualquier importación
+vi.mock('../../api/client', () => ({
+  apiClient: {},
+  usersApi: {
+    create: mockUsersApiCreate,
+    get: vi.fn(),
+    list: vi.fn(),
+  },
+  chatsApi: {
+    create: vi.fn(),
+    get: vi.fn(),
+    list: vi.fn(),
+  },
+  messagesApi: {
+    send: vi.fn(),
+    list: vi.fn(),
+  },
+}))
+
+vi.mock('../../store/authStore', () => {
+  return {
+    useAuthStore: vi.fn((selector?: (state: any) => any) => {
+      const store = mockStoreRef.current
+      if (selector) {
+        return selector(store)
+      }
+      return store
+    }),
+  }
+})
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
+
+// Importar después de los mocks
+import Login from '../Login'
+import { useAuthStore } from '../../store/authStore'
 
 describe('Login', () => {
-  const mockNavigate = vi.fn()
-  
   beforeEach(() => {
-    vi.mock('react-router-dom', async () => {
-      const actual = await vi.importActual('react-router-dom')
-      return {
-        ...actual,
-        useNavigate: () => mockNavigate,
-      }
-    })
+    vi.clearAllMocks()
+    mockNavigate.mockClear()
+    mockUsersApiCreate.mockClear()
+    mockLogin.mockClear()
+    
+    // Actualizar el mockStore con nuevos mocks para cada test
+    mockStoreRef.current = {
+      user: null,
+      isAuthenticated: false,
+      login: mockLogin,
+      logout: vi.fn(),
+    }
   })
 
   it('renders login form', () => {
@@ -36,7 +96,7 @@ describe('Login', () => {
     const user = userEvent.setup()
     const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
     
-    vi.mocked(usersApi.create).mockResolvedValue(mockUser)
+    mockUsersApiCreate.mockResolvedValue(mockUser)
 
     render(
       <BrowserRouter>
@@ -44,20 +104,35 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    const handleInput = screen.getByLabelText(/handle/i)
+    const displayNameInput = screen.getByLabelText(/nombre para mostrar/i)
+    const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
+
+    await user.clear(handleInput)
+    await user.type(handleInput, 'testuser')
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Test User')
+    await user.click(submitButton)
 
     await waitFor(() => {
-      expect(usersApi.create).toHaveBeenCalledWith('testuser', 'Test User')
-    })
+      expect(mockUsersApiCreate).toHaveBeenCalledWith('testuser', 'Test User')
+    }, { timeout: 3000 })
+    
+    // Esperar a que se complete el login
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        id: mockUser.id,
+        handle: mockUser.handle,
+        display_name: mockUser.display_name,
+      })
+    }, { timeout: 3000 })
   })
 
   it('shows error on duplicate handle', async () => {
     const user = userEvent.setup()
-    const error = { response: { status: 409 } }
+    const error: any = { response: { status: 409 } }
     
-    vi.mocked(usersApi.create).mockRejectedValue(error)
+    mockUsersApiCreate.mockRejectedValue(error)
 
     render(
       <BrowserRouter>
@@ -65,13 +140,18 @@ describe('Login', () => {
       </BrowserRouter>
     )
 
-    await user.type(screen.getByLabelText(/handle/i), 'testuser')
-    await user.type(screen.getByLabelText(/nombre para mostrar/i), 'Test User')
-    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+    const handleInput = screen.getByLabelText(/handle/i)
+    const displayNameInput = screen.getByLabelText(/nombre para mostrar/i)
+    const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
+
+    await user.clear(handleInput)
+    await user.type(handleInput, 'testuser')
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Test User')
+    await user.click(submitButton)
 
     await waitFor(() => {
       expect(screen.getByText(/este handle ya existe/i)).toBeInTheDocument()
-    })
+    }, { timeout: 3000 })
   })
 })
-

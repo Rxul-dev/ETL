@@ -46,6 +46,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/messaging
+          WAREHOUSE_URL: ""  # Opcional para tests
         run: |
           pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
       
