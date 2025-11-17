@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.routers import users, chats, messages, reactions, etl_router, bookings as bookings_router, booking_events, websocket
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -14,6 +15,18 @@ logger = logging.getLogger(__name__)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Rxul Chat API", version="1.0.0")
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Frontend en desarrollo
+        "http://localhost:3000",  # Frontend alternativo (por si acaso)
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Instrumentar la API para Prometheus
 instrumentator = Instrumentator()

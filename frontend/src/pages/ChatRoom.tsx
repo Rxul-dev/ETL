@@ -113,6 +113,18 @@ function ChatRoom() {
             if (exists) {
               return prev // No agregar si ya existe
             }
+            // Cargar información del usuario si no existe
+            if (message.sender_id) {
+              setUsersMap((prev) => {
+                if (!prev.has(message.sender_id!)) {
+                  // Cargar usuario en background
+                  usersApi.get(message.sender_id!).then((userData) => {
+                    setUsersMap((current) => new Map(current).set(userData.id, userData))
+                  }).catch(console.error)
+                }
+                return prev
+              })
+            }
             return [...prev, message]
           })
         }
@@ -167,14 +179,36 @@ function ChatRoom() {
 
     setSending(true)
     try {
-      await messagesApi.send(Number(chatId), newMessage, user.id)
+      await messagesApi.send(
+        Number(chatId),
+        newMessage,
+        user.id,
+        replyingTo?.id
+      )
       setNewMessage('')
+      setReplyingTo(null)
     } catch (err) {
       console.error('Error sending message:', err)
       alert('Error al enviar el mensaje')
     } finally {
       setSending(false)
     }
+  }
+
+  const handleReplyClick = (message: Message) => {
+    setReplyingTo(message)
+  }
+
+  const getReplyMessage = (replyToId: number | null | undefined): Message | null => {
+    if (!replyToId) return null
+    return messages.find((m) => m.id === replyToId) || null
+  }
+
+  const getSenderName = (senderId: number | null): string => {
+    if (!senderId) return 'Usuario desconocido'
+    if (senderId === user?.id) return 'Tú'
+    const sender = usersMap.get(senderId)
+    return sender ? sender.display_name : 'Usuario desconocido'
   }
 
   if (loading) {
@@ -187,7 +221,16 @@ function ChatRoom() {
         <button onClick={() => navigate('/chats')} className="back-button">
           ← Volver
         </button>
-        <h2>{chat?.title || `Chat ${chat?.type === 'dm' ? 'Directo' : 'Grupo'}`}</h2>
+        <div className="chat-header-info">
+          <h2>
+            {chat?.type === 'dm' && otherUser
+              ? otherUser.display_name
+              : chat?.title || `Chat ${chat?.type === 'dm' ? 'Directo' : 'Grupo'}`}
+          </h2>
+          {chat?.type === 'dm' && otherUser && (
+            <p className="chat-header-handle">@{otherUser.handle}</p>
+          )}
+        </div>
       </header>
 
       <main className="chat-room-main">
@@ -195,38 +238,88 @@ function ChatRoom() {
           {messages.length === 0 ? (
             <div className="empty-messages">No hay mensajes aún</div>
           ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`message ${message.sender_id === user?.id ? 'own-message' : ''}`}
-              >
-                <div className="message-content">
-                  <div className="message-body">{message.body}</div>
-                  <div className="message-time">
-                    {new Date(message.created_at).toLocaleTimeString('es-ES', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+            messages.map((message) => {
+              const replyTo = getReplyMessage(message.reply_to_id)
+              const senderName = getSenderName(message.sender_id)
+              const isOwn = message.sender_id === user?.id
+              
+              return (
+                <div
+                  key={message.id}
+                  className={`message ${isOwn ? 'own-message' : ''}`}
+                >
+                  <div className="message-content">
+                    {!isOwn && (
+                      <div className="message-sender">{senderName}</div>
+                    )}
+                    {replyTo && (
+                      <div className="message-reply-preview">
+                        <span className="reply-to-label">
+                          Respondiendo a {getSenderName(replyTo.sender_id)}:
+                        </span>
+                        <span className="reply-to-text">{replyTo.body}</span>
+                      </div>
+                    )}
+                    <div className="message-body">{message.body}</div>
+                    <div className="message-footer">
+                      <div className="message-time">
+                        {new Date(message.created_at).toLocaleTimeString('es-ES', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {!isOwn && (
+                        <button
+                          onClick={() => handleReplyClick(message)}
+                          className="reply-button"
+                          title="Responder"
+                        >
+                          ↳
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
 
         <form onSubmit={handleSendMessage} className="message-input-form">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Escribe un mensaje..."
-            className="message-input"
-            disabled={sending}
-          />
-          <button type="submit" disabled={sending || !newMessage.trim()} className="send-button">
-            Enviar
-          </button>
+          {replyingTo && (
+            <div className="reply-indicator">
+              <div className="reply-indicator-content">
+                <span>
+                  Respondiendo a {getSenderName(replyingTo.sender_id)}: {replyingTo.body}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(null)}
+                  className="cancel-reply-button"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="input-container">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={
+                replyingTo
+                  ? `Responder a ${getSenderName(replyingTo.sender_id)}...`
+                  : 'Escribe un mensaje...'
+              }
+              className="message-input"
+              disabled={sending}
+            />
+            <button type="submit" disabled={sending || !newMessage.trim()} className="send-button">
+              Enviar
+            </button>
+          </div>
         </form>
       </main>
     </div>
