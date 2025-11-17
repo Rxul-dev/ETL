@@ -20,10 +20,14 @@ function ChatRoom() {
   useEffect(() => {
     if (!chatId || !user) return
 
+    let isMounted = true
+
     const loadChat = async () => {
       try {
         const chatData = await chatsApi.get(Number(chatId))
-        setChat(chatData)
+        if (isMounted) {
+          setChat(chatData)
+        }
       } catch (err) {
         console.error('Error loading chat:', err)
       }
@@ -32,33 +36,76 @@ function ChatRoom() {
     const loadMessages = async () => {
       try {
         const response = await messagesApi.list(Number(chatId), 1, 100)
-        setMessages(response.items.reverse()) // Mostrar más antiguos primero
+        if (isMounted) {
+          setMessages(response.items.reverse()) // Mostrar más antiguos primero
+        }
       } catch (err) {
         console.error('Error loading messages:', err)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     loadChat()
     loadMessages()
 
-    // Conectar WebSocket
-    const ws = new WebSocketService()
-    wsServiceRef.current = ws
+    // Conectar WebSocket solo si no hay una conexión existente para este chat
+    if (!wsServiceRef.current || wsServiceRef.current.chatId !== Number(chatId)) {
+      // Desconectar conexión anterior si existe
+      if (wsServiceRef.current) {
+        wsServiceRef.current.disconnect()
+      }
 
-    ws.onMessage((message) => {
-      setMessages((prev) => [...prev, message])
-    })
+      const ws = new WebSocketService()
+      wsServiceRef.current = ws
 
-    ws.onError((error) => {
-      console.error('WebSocket error:', error)
-    })
+      ws.onMessage((message) => {
+        if (isMounted) {
+          // Verificar que el mensaje no esté duplicado
+          setMessages((prev) => {
+            const exists = prev.some((m) => m.id === message.id)
+            if (exists) {
+              return prev // No agregar si ya existe
+            }
+            return [...prev, message]
+          })
+        }
+      })
 
-    ws.connect(Number(chatId), user.id).catch(console.error)
+      ws.onError((error) => {
+        // Solo mostrar errores críticos, no errores transitorios durante la conexión
+        if (error.type === 'max_reconnect_attempts') {
+          console.error('WebSocket: Max reconnection attempts reached')
+          if (isMounted) {
+            alert('No se pudo conectar al chat. Por favor, recarga la página.')
+          }
+        } else {
+          // Solo registrar como warning, no como error, ya que la conexión puede establecerse después
+          console.warn('WebSocket warning:', error)
+        }
+      })
+
+      ws.connect(Number(chatId), user.id).catch((error) => {
+        // Solo mostrar errores si realmente no se pudo conectar
+        if (error.message === 'Connection timeout') {
+          console.error('WebSocket: Connection timeout')
+          if (isMounted) {
+            alert('No se pudo conectar al chat. Por favor, verifica tu conexión.')
+          }
+        } else {
+          console.warn('WebSocket connection issue:', error)
+        }
+      })
+    }
 
     return () => {
-      ws.disconnect()
+      isMounted = false
+      if (wsServiceRef.current) {
+        wsServiceRef.current.disconnect()
+        wsServiceRef.current = null
+      }
     }
   }, [chatId, user])
 
