@@ -36,10 +36,60 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
           script: |
-            cd /opt/rxul-chat-backend
-            git pull origin main
-            docker-compose down
-            docker-compose build
-            docker-compose up -d
-            docker-compose logs --tail=50
+            set -e
+            
+            # Crear directorio si no existe
+            DEPLOY_DIR="/opt/rxul-chat-backend"
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "📁 Creando directorio $DEPLOY_DIR..."
+              sudo mkdir -p $DEPLOY_DIR
+              sudo chown $USER:$USER $DEPLOY_DIR
+            fi
+            
+            cd $DEPLOY_DIR
+            
+            # Clonar repositorio si no existe
+            if [ ! -d ".git" ]; then
+              echo "📥 Clonando repositorio..."
+              # Si el directorio tiene archivos pero no es git, limpiarlo
+              if [ "$(ls -A $DEPLOY_DIR 2>/dev/null)" ]; then
+                echo "⚠️ Directorio no vacío pero no es git. Limpiando..."
+                cd /tmp
+                sudo rm -rf $DEPLOY_DIR
+                sudo mkdir -p $DEPLOY_DIR
+                sudo chown $USER:$USER $DEPLOY_DIR
+              fi
+              git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
+              cd $DEPLOY_DIR
+            else
+              echo "🔄 Actualizando repositorio..."
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+            fi
+            
+            # Verificar docker-compose (puede ser 'docker compose' o 'docker-compose')
+            if command -v docker-compose &> /dev/null; then
+              DOCKER_COMPOSE="docker-compose"
+            elif docker compose version &> /dev/null; then
+              DOCKER_COMPOSE="docker compose"
+            else
+              echo "❌ Error: docker-compose no está instalado"
+              exit 1
+            fi
+            
+            echo "🐳 Usando: $DOCKER_COMPOSE"
+            
+            # Deploy
+            echo "🛑 Deteniendo contenedores..."
+            $DOCKER_COMPOSE down || true
+            
+            echo "🔨 Construyendo imágenes..."
+            $DOCKER_COMPOSE build
+            
+            echo "🚀 Iniciando contenedores..."
+            $DOCKER_COMPOSE up -d
+            
+            echo "📋 Últimos logs:"
+            $DOCKER_COMPOSE logs --tail=50
 
