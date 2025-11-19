@@ -18,16 +18,45 @@ function Login() {
     setLoading(true)
 
     try {
-      const user = await usersApi.create(handle, displayName)
-      login({
-        id: user.id,
-        handle: user.handle,
-        display_name: user.display_name,
-      })
-      navigate('/chats')
+      // Primero intentar obtener el usuario por handle
+      const existingUser = await usersApi.getByHandle(handle)
+      
+      if (existingUser) {
+        // Si el usuario existe, iniciar sesión con ese usuario
+        login({
+          id: existingUser.id,
+          handle: existingUser.handle,
+          display_name: existingUser.display_name,
+        })
+        navigate('/chats')
+      } else {
+        // Si no existe, crear un nuevo usuario
+        const user = await usersApi.create(handle, displayName)
+        login({
+          id: user.id,
+          handle: user.handle,
+          display_name: user.display_name,
+        })
+        navigate('/chats')
+      }
     } catch (err: any) {
       if (err.response?.status === 409) {
-        setError('Este handle ya existe. Por favor, elige otro.')
+        // Si hay un error 409, intentar obtener el usuario existente
+        try {
+          const existingUser = await usersApi.getByHandle(handle)
+          if (existingUser) {
+            login({
+              id: existingUser.id,
+              handle: existingUser.handle,
+              display_name: existingUser.display_name,
+            })
+            navigate('/chats')
+          } else {
+            setError('Este handle ya existe. Por favor, elige otro.')
+          }
+        } catch (getErr) {
+          setError('Error al obtener usuario. Por favor, intenta de nuevo.')
+        }
       } else {
         setError('Error al crear usuario. Por favor, intenta de nuevo.')
       }

@@ -36,6 +36,24 @@ export interface Message {
   reply_to_id: number | null
 }
 
+export interface Reaction {
+  message_id: number
+  user_id: number
+  emoji: string
+  created_at: string
+}
+
+export interface Booking {
+  id: number
+  message_id: number
+  user_id: number
+  chat_id: number
+  booking_type: string | null
+  booking_date: string | null
+  status: string
+  created_at: string
+}
+
 export interface PageResponse<T> {
   items: T[]
   total: number
@@ -54,10 +72,21 @@ export const usersApi = {
     const response = await apiClient.get<User>(`/users/${id}`)
     return response.data
   },
-  list: async (page: number = 1, page_size: number = 50): Promise<PageResponse<User>> => {
-    const response = await apiClient.get<PageResponse<User>>('/users', {
-      params: { page, page_size },
-    })
+  getByHandle: async (handle: string): Promise<User | null> => {
+    try {
+      const response = await apiClient.get<User>(`/users/by-handle/${handle}`)
+      return response.data
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null
+      }
+      throw error
+    }
+  },
+  list: async (page: number = 1, page_size: number = 50, search?: string): Promise<PageResponse<User>> => {
+    const params: any = { page, page_size }
+    // Nota: El backend no tiene búsqueda aún, pero podemos filtrar en el frontend
+    const response = await apiClient.get<PageResponse<User>>('/users', { params })
     return response.data
   },
 }
@@ -78,6 +107,12 @@ export const chatsApi = {
     })
     return response.data
   },
+  getMembers: async (chatId: number, page: number = 1, page_size: number = 50): Promise<PageResponse<{ chat_id: number; user_id: number; role: string; joined_at: string }>> => {
+    const response = await apiClient.get(`/chats/${chatId}/members`, {
+      params: { page, page_size },
+    })
+    return response.data
+  },
 }
 
 // Messages API
@@ -94,6 +129,58 @@ export const messagesApi = {
     const response = await apiClient.get<PageResponse<Message>>(`/chats/${chatId}/messages`, {
       params: { page, page_size },
     })
+    return response.data
+  },
+}
+
+// Reactions API
+export const reactionsApi = {
+  add: async (messageId: number, emoji: string, userId: number): Promise<Reaction> => {
+    const response = await apiClient.post<Reaction>(`/messages/${messageId}/reactions`, {
+      emoji,
+      user_id: userId,
+    })
+    return response.data
+  },
+  list: async (messageId: number, page: number = 1, page_size: number = 50): Promise<PageResponse<Reaction>> => {
+    const response = await apiClient.get<PageResponse<Reaction>>(`/messages/${messageId}/reactions`, {
+      params: { page, page_size },
+    })
+    return response.data
+  },
+  remove: async (messageId: number, emoji: string, userId: number): Promise<void> => {
+    await apiClient.delete(`/messages/${messageId}/reactions`, {
+      params: { user_id: userId, emoji },
+    })
+  },
+}
+
+// Bookings API
+export const bookingsApi = {
+  create: async (
+    messageId: number,
+    userId: number,
+    chatId: number,
+    bookingType: string = 'room',
+    bookingDate?: string
+  ): Promise<Booking> => {
+    const response = await apiClient.post<Booking>('/bookings', {
+      message_id: messageId,
+      user_id: userId,
+      chat_id: chatId,
+      booking_type: bookingType,
+      booking_date: bookingDate,
+    })
+    return response.data
+  },
+  list: async (page: number = 1, page_size: number = 50): Promise<PageResponse<Booking>> => {
+    const response = await apiClient.get<PageResponse<Booking>>('/bookings', {
+      params: { page, page_size },
+    })
+    return response.data
+  },
+  get: async (bookingId: number): Promise<Booking> => {
+    const response = await apiClient.get<Booking>(`/bookings/${bookingId}`)
     return response.data
   },
 }

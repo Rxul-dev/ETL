@@ -18,6 +18,14 @@ def create_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     return u
 
 
+@router.get("/by-handle/{handle}", response_model=schemas.UserOut)
+def get_user_by_handle(handle: str, db: Session = Depends(get_db)):
+    """Obtiene un usuario por su handle. Debe ir antes de /{user_id} para que FastAPI lo evalúe correctamente."""
+    u = db.query(models.User).filter_by(handle=handle).first()
+    if not u:
+        raise HTTPException(404, detail="user not found")
+    return u
+
 @router.get("/{user_id}", response_model=schemas.UserOut)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     u = db.get(models.User, user_id)

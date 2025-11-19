@@ -35,9 +35,10 @@ class ConnectionManager:
         self.user_connections: Dict[int, Set[WebSocket]] = {}
     
     async def connect(self, websocket: WebSocket, chat_id: int, user_id: int = None):
-        """Conecta un WebSocket a un chat específico"""
-        await websocket.accept()
+        """Conecta un WebSocket a un chat específico
         
+        Nota: La conexión WebSocket debe ser aceptada ANTES de llamar a este método.
+        """
         if chat_id not in self.active_connections:
             self.active_connections[chat_id] = set()
         
