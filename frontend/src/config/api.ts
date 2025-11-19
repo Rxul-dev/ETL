@@ -10,17 +10,25 @@
  * Obtiene la URL base para las peticiones HTTP (REST API)
  */
 export function getApiBaseUrl(): string {
-  // Si VITE_API_URL está definido, usarlo (útil para desarrollo con .env.local o producción personalizada)
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL
+  // Si VITE_API_URL está definido y no está vacío, usarlo
+  // (útil para desarrollo con .env.local o producción personalizada)
+  const viteApiUrl = import.meta.env.VITE_API_URL
+  if (viteApiUrl && viteApiUrl.trim() !== '') {
+    const url = viteApiUrl.trim()
+    if (import.meta.env.DEV) {
+      console.log('[API Config] Using VITE_API_URL from .env.local:', url)
+    }
+    return url
   }
   
   // En desarrollo: usar localhost:8000
   if (import.meta.env.DEV) {
+    console.log('[API Config] Development mode: using http://localhost:8000')
     return 'http://localhost:8000'
   }
   
   // En producción: usar /api (Nginx hace proxy)
+  console.log('[API Config] Production mode: using /api (Nginx proxy)')
   return '/api'
 }
 
@@ -28,15 +36,17 @@ export function getApiBaseUrl(): string {
  * Obtiene la URL base para WebSocket
  */
 export function getWebSocketBaseUrl(): string {
-  // Si VITE_API_URL está definido, extraer el host y protocolo
-  if (import.meta.env.VITE_API_URL) {
+  // Si VITE_API_URL está definido y no está vacío, extraer el host y protocolo
+  const viteApiUrl = import.meta.env.VITE_API_URL
+  if (viteApiUrl && viteApiUrl.trim() !== '') {
     try {
-      const url = new URL(import.meta.env.VITE_API_URL)
+      const url = new URL(viteApiUrl.trim())
       const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
       return `${protocol}//${url.host}`
     } catch {
-      // Si no es una URL válida, usar el valor tal cual
-      return import.meta.env.VITE_API_URL.replace(/^https?:\/\//, 'ws://').replace(/^http:\/\//, 'ws://')
+      // Si no es una URL válida, intentar convertir http/https a ws/wss
+      const trimmed = viteApiUrl.trim()
+      return trimmed.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://')
     }
   }
   

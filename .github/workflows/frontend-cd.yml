@@ -51,9 +51,13 @@ jobs:
       - name: Build
         if: steps.check-secrets.outputs.skip != 'true'
         working-directory: ./frontend
-        run: npm run build
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          # Solo exportar VITE_API_URL si está definido y no está vacío
+          # Si no está definido o está vacío, el código usará /api automáticamente
+          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
+            export VITE_API_URL="${{ secrets.VITE_API_URL }}"
+          fi
+          npm run build
       
       - name: Deploy to Hetzner
         if: steps.check-secrets.outputs.skip != 'true'
