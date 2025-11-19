@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 
 // Usar vi.hoisted() para asegurar que los mocks funcionen correctamente
-const { mockNavigate, mockLogin, mockUsersApiCreate, mockStoreRef } = vi.hoisted(() => {
+const { mockNavigate, mockLogin, mockUsersApiCreate, mockUsersApiGetByHandle, mockStoreRef } = vi.hoisted(() => {
   const storeRef: { current: any } = {
     current: {
       user: null,
@@ -17,6 +17,7 @@ const { mockNavigate, mockLogin, mockUsersApiCreate, mockStoreRef } = vi.hoisted
     mockNavigate: vi.fn(),
     mockLogin: vi.fn(),
     mockUsersApiCreate: vi.fn(),
+    mockUsersApiGetByHandle: vi.fn(),
     mockStoreRef: storeRef,
   }
 })
@@ -27,12 +28,14 @@ vi.mock('../../api/client', () => ({
   usersApi: {
     create: mockUsersApiCreate,
     get: vi.fn(),
+    getByHandle: mockUsersApiGetByHandle,
     list: vi.fn(),
   },
   chatsApi: {
     create: vi.fn(),
     get: vi.fn(),
     list: vi.fn(),
+    getMembers: vi.fn(),
   },
   messagesApi: {
     send: vi.fn(),
@@ -68,6 +71,7 @@ describe('Login', () => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
     mockUsersApiCreate.mockClear()
+    mockUsersApiGetByHandle.mockClear()
     mockLogin.mockClear()
     
     // Actualizar el mockStore con nuevos mocks para cada test
@@ -91,10 +95,12 @@ describe('Login', () => {
     expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeInTheDocument()
   })
 
-  it('submits form with valid data', async () => {
+  it('submits form with valid data - new user', async () => {
     const user = userEvent.setup()
     const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
     
+    // Usuario no existe, se crea uno nuevo
+    mockUsersApiGetByHandle.mockResolvedValue(null)
     mockUsersApiCreate.mockResolvedValue(mockUser)
 
     render(
@@ -114,6 +120,10 @@ describe('Login', () => {
     await user.click(submitButton)
 
     await waitFor(() => {
+      expect(mockUsersApiGetByHandle).toHaveBeenCalledWith('testuser')
+    }, { timeout: 3000 })
+    
+    await waitFor(() => {
       expect(mockUsersApiCreate).toHaveBeenCalledWith('testuser', 'Test User')
     }, { timeout: 3000 })
     
@@ -127,11 +137,12 @@ describe('Login', () => {
     }, { timeout: 3000 })
   })
 
-  it('shows error on duplicate handle', async () => {
+  it('submits form with existing handle - logs in automatically', async () => {
     const user = userEvent.setup()
-    const error: any = { response: { status: 409 } }
+    const existingUser = { id: 2, handle: 'testuser', display_name: 'Existing User', created_at: new Date().toISOString() }
     
-    mockUsersApiCreate.mockRejectedValue(error)
+    // Usuario existe, se hace login automático
+    mockUsersApiGetByHandle.mockResolvedValue(existingUser)
 
     render(
       <BrowserRouter>
@@ -150,7 +161,49 @@ describe('Login', () => {
     await user.click(submitButton)
 
     await waitFor(() => {
-      expect(screen.getByText(/este handle ya existe/i)).toBeInTheDocument()
+      expect(mockUsersApiGetByHandle).toHaveBeenCalledWith('testuser')
+    }, { timeout: 3000 })
+    
+    // No debe crear un nuevo usuario
+    expect(mockUsersApiCreate).not.toHaveBeenCalled()
+    
+    // Debe hacer login con el usuario existente
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        id: existingUser.id,
+        handle: existingUser.handle,
+        display_name: existingUser.display_name,
+      })
+    }, { timeout: 3000 })
+  })
+
+  it('handles error when getByHandle fails', async () => {
+    const user = userEvent.setup()
+    const mockUser = { id: 1, handle: 'testuser', display_name: 'Test User', created_at: new Date().toISOString() }
+    
+    // Error al obtener usuario, pero luego se crea exitosamente
+    mockUsersApiGetByHandle.mockRejectedValue(new Error('Network error'))
+    mockUsersApiCreate.mockResolvedValue(mockUser)
+
+    render(
+      <BrowserRouter>
+        <Login />
+      </BrowserRouter>
+    )
+
+    const handleInput = screen.getByLabelText(/handle/i)
+    const displayNameInput = screen.getByLabelText(/nombre para mostrar/i)
+    const submitButton = screen.getByRole('button', { name: /iniciar sesión/i })
+
+    await user.clear(handleInput)
+    await user.type(handleInput, 'testuser')
+    await user.clear(displayNameInput)
+    await user.type(displayNameInput, 'Test User')
+    await user.click(submitButton)
+
+    // Debe mostrar un error
+    await waitFor(() => {
+      expect(screen.getByText(/error al crear usuario/i)).toBeInTheDocument()
     }, { timeout: 3000 })
   })
 })

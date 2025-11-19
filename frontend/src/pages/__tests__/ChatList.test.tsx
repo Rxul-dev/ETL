@@ -4,15 +4,21 @@ import { BrowserRouter } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
 // Usar vi.hoisted() para el mock
-const { mockChatsApiList } = vi.hoisted(() => {
+const { mockChatsApiList, mockChatsApiGetMembers } = vi.hoisted(() => {
   return {
     mockChatsApiList: vi.fn(),
+    mockChatsApiGetMembers: vi.fn(),
   }
 })
 
 vi.mock('../../api/client', () => ({
   chatsApi: {
     list: mockChatsApiList,
+    getMembers: mockChatsApiGetMembers,
+    get: vi.fn(),
+  },
+  usersApi: {
+    get: vi.fn(),
   },
 }))
 
@@ -33,6 +39,16 @@ describe('ChatList', () => {
     vi.clearAllMocks()
     mockLogout.mockClear()
     mockChatsApiList.mockClear()
+    mockChatsApiGetMembers.mockClear()
+    
+    // Mock por defecto para getMembers (retorna miembros vacíos)
+    mockChatsApiGetMembers.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 50,
+      total_pages: 0,
+    })
     
     vi.mocked(useAuthStore).mockReturnValue({
       user: mockUser,
@@ -50,6 +66,15 @@ describe('ChatList', () => {
       page_size: 50,
       total_pages: 1,
     })
+    
+    // Mock getMembers para cada chat DM
+    mockChatsApiGetMembers.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 50,
+      total_pages: 0,
+    })
 
     render(
       <BrowserRouter>
@@ -59,7 +84,7 @@ describe('ChatList', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Chat 1')).toBeInTheDocument()
-    })
+    }, { timeout: 5000 })
   })
 
   it('shows loading state', () => {
