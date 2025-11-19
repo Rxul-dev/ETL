@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from app.websocket_manager import ConnectionManager
 import json
 
@@ -34,9 +35,15 @@ def test_websocket_connection(client, db, sample_user_data, sample_chat_data):
 
 def test_websocket_nonexistent_chat(client):
     """Test conexión WebSocket a chat inexistente"""
-    with pytest.raises(Exception):
+    # El endpoint acepta la conexión y luego la cierra con código 1008
+    with pytest.raises(WebSocketDisconnect) as exc_info:
         with client.websocket_connect("/ws/chats/99999") as websocket:
+            # La conexión debería cerrarse inmediatamente
             pass
+    
+    # Verificar que el código de cierre es 1008 (Policy Violation - Chat not found)
+    assert exc_info.value.code == 1008
+    assert "Chat not found" in exc_info.value.reason
 
 def test_websocket_manager_connect():
     """Test ConnectionManager básico"""
