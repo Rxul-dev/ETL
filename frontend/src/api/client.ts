@@ -1,9 +1,8 @@
 import axios from 'axios'
+import { getApiBaseUrl } from '../config/api'
 
-// En desarrollo: usar localhost:8000 directamente
-// En producción: usar /api/ que nginx proxy a localhost:8000
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (import.meta.env.DEV ? 'http://localhost:8000' : '/api')
+// Obtener la URL base de la API según el entorno
+const API_BASE_URL = getApiBaseUrl()
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

@@ -1,4 +1,5 @@
 import { Message } from '../api/client'
+import { getWebSocketBaseUrl } from '../config/api'
 
 export interface WebSocketMessage {
   type: 'connection' | 'new_message' | 'pong'
@@ -36,11 +37,9 @@ export class WebSocketService {
       this.userId = userId || null
       this.isIntentionallyDisconnected = false
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const host = import.meta.env.DEV 
-        ? 'localhost:8000' 
-        : window.location.host
-      const wsUrl = `${protocol}//${host}/ws/chats/${chatId}${userId ? `?user_id=${userId}` : ''}`
+      // Obtener la URL base del WebSocket según el entorno
+      const wsBaseUrl = getWebSocketBaseUrl()
+      const wsUrl = `${wsBaseUrl}/ws/chats/${chatId}${userId ? `?user_id=${userId}` : ''}`
       
       try {
         this.ws = new WebSocket(wsUrl)

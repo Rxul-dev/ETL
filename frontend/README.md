@@ -24,22 +24,32 @@ npm install
 npm run dev
 ```
 
-La aplicación estará disponible en `http://localhost:3000`
+La aplicación estará disponible en `http://localhost:5173`
 
 ### Configuración del Backend
 
 **En desarrollo local:**
 - El backend debe estar corriendo en `http://localhost:8000`
-- El proxy de Vite está configurado automáticamente
-- No necesitas configurar `VITE_API_URL` en desarrollo
+- Por defecto, el frontend se conecta a `http://localhost:8000`
+- **Opcional**: Puedes crear un archivo `.env.local` para personalizar la URL:
+  ```bash
+  # frontend/.env.local
+  VITE_API_URL=http://localhost:8000
+  # o para usar un backend remoto:
+  # VITE_API_URL=http://192.168.1.100:8000
+  ```
+- El archivo `.env.local` está en `.gitignore` y no se sube al repositorio
 
-**Para producción:**
-- Crea un archivo `.env` basado en `.env.example`
-- Configura `VITE_API_URL` con la URL de tu servidor:
+**Para producción (VM con Nginx):**
+- **NO** necesitas configurar `VITE_API_URL` en producción
+- El frontend usa automáticamente `/api` como base URL
+- Nginx hace proxy de `/api` a `http://127.0.0.1:8000`
+- Nginx también hace proxy de `/ws` para WebSocket
+
+**Para producción personalizada (sin Nginx):**
+- Configura `VITE_API_URL` en el workflow de GitHub Actions o en el build:
   ```bash
   VITE_API_URL=https://api.tudominio.com
-  # o
-  VITE_API_URL=http://tu-servidor-hetzner:8000
   ```
 
 ## Build
@@ -48,7 +58,10 @@ La aplicación estará disponible en `http://localhost:3000`
 npm run build
 ```
 
-El build usará la variable `VITE_API_URL` si está configurada, o `http://localhost:8000` por defecto.
+**Lógica de URLs en el build:**
+- Si `VITE_API_URL` está definido → usa ese valor
+- Si no está definido y es desarrollo → usa `http://localhost:8000`
+- Si no está definido y es producción → usa `/api` (para Nginx proxy)
 
 ## Testing
 
@@ -68,12 +81,21 @@ npm run test:coverage
 
 ## URLs del Backend
 
-- **Desarrollo local**: `http://localhost:8000`
-- **Docker Compose**: `http://localhost:8000` (puerto expuesto)
-- **Producción**: Configurar según tu servidor (Hetzner, etc.)
+La configuración de URLs es automática según el entorno:
 
-## WebSocket
+- **Desarrollo local**: 
+  - API: `http://localhost:8000` (o `VITE_API_URL` de `.env.local` si existe)
+  - WebSocket: `ws://localhost:8000/ws/chats/{chat_id}`
 
-El WebSocket se conecta automáticamente a:
-- **Desarrollo**: `ws://localhost:8000/ws/chats/{chat_id}`
-- **Producción**: `ws://{VITE_API_URL}/ws/chats/{chat_id}` (reemplazando `http://` por `ws://`)
+- **Producción con Nginx (VM)**:
+  - API: `/api` (Nginx hace proxy a `http://127.0.0.1:8000`)
+  - WebSocket: `ws://{host}/ws/chats/{chat_id}` (Nginx hace proxy)
+
+- **Producción personalizada**:
+  - API: `{VITE_API_URL}` (configurado en el build)
+  - WebSocket: `ws://{host}/ws/chats/{chat_id}` (extraído de `VITE_API_URL`)
+
+## Archivos de Configuración
+
+- `.env.local` (opcional, para desarrollo): Define `VITE_API_URL` si necesitas una URL diferente a `http://localhost:8000`
+- `.env.local.example`: Plantilla de ejemplo para `.env.local`
