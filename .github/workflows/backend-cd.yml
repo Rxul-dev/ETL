@@ -8,12 +8,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && secrets.HETZNER_HOST != ''
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - uses: actions/checkout@v4
       
       - name: Check deployment secrets
+        id: check-secrets
         run: |
           if [ -z "${{ secrets.HETZNER_HOST }}" ]; then
             echo "⚠️ HETZNER_HOST secret is not configured. Skipping deployment."
@@ -21,11 +22,13 @@ jobs:
             echo "  - HETZNER_HOST"
             echo "  - HETZNER_USER"
             echo "  - HETZNER_SSH_KEY"
-            exit 0
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Deploy to Hetzner
-        if: secrets.HETZNER_HOST != ''
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HETZNER_HOST }}
