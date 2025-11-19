@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'nginx/**'
+      - '.github/workflows/frontend-cd.yml'
 
 jobs:
   deploy:
@@ -65,7 +67,18 @@ jobs:
           source: "frontend/dist/*"
           target: "/opt/rxul-chat-frontend/dist"
       
-      - name: Restart frontend service
+      - name: Copy nginx configuration
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
+          source: "nginx/rxul-chat-frontend.conf"
+          target: "/tmp/rxul-chat-frontend.conf"
+      
+      - name: Configure and restart nginx
         if: steps.check-secrets.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -74,6 +87,77 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
           script: |
-            cd /opt/rxul-chat-frontend
-            sudo systemctl restart nginx || true
+            set -e
+            
+            # Instalar nginx si no está instalado
+            if ! command -v nginx &> /dev/null; then
+              echo "📦 Instalando nginx..."
+              sudo apt-get update
+              sudo apt-get install -y nginx
+            fi
+            
+            # Crear directorio para configuración si no existe
+            sudo mkdir -p /etc/nginx/sites-available
+            sudo mkdir -p /etc/nginx/sites-enabled
+            
+            # Copiar configuración de nginx
+            NGINX_SOURCE="/tmp/rxul-chat-frontend.conf"
+            NGINX_TARGET="/etc/nginx/sites-available/rxul-chat-frontend"
+            
+            if [ -f "$NGINX_SOURCE" ]; then
+              echo "📝 Copiando configuración de nginx..."
+              sudo cp "$NGINX_SOURCE" "$NGINX_TARGET"
+              sudo rm "$NGINX_SOURCE"  # Limpiar archivo temporal
+            else
+              echo "⚠️ Archivo de configuración no encontrado, creando uno básico..."
+              sudo tee "$NGINX_TARGET" > /dev/null << 'NGINXEOF'
+            server {
+                listen 80;
+                server_name _;
+                root /opt/rxul-chat-frontend/dist;
+                index index.html;
+                location / {
+                    try_files $uri $uri/ /index.html;
+                }
+                location /api/ {
+                    proxy_pass http://localhost:8000/;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                }
+                location /ws/ {
+                    proxy_pass http://localhost:8000;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                }
+            }
+            NGINXEOF
+            fi
+            
+            # Activar configuración
+            echo "🔗 Activando configuración de nginx..."
+            sudo ln -sf "$NGINX_TARGET" /etc/nginx/sites-enabled/rxul-chat-frontend
+            
+            # Verificar configuración
+            echo "✅ Verificando configuración de nginx..."
+            sudo nginx -t
+            
+            # Asegurar permisos del directorio
+            sudo chown -R www-data:www-data /opt/rxul-chat-frontend/dist || true
+            
+            # Abrir puerto 80 en firewall si ufw está activo
+            if command -v ufw &> /dev/null; then
+              echo "🔥 Configurando firewall..."
+              sudo ufw allow 80/tcp || true
+            fi
+            
+            # Reiniciar nginx
+            echo "🔄 Reiniciando nginx..."
+            sudo systemctl restart nginx || sudo systemctl start nginx
+            
+            # Habilitar nginx para que inicie automáticamente
+            sudo systemctl enable nginx || true
+            
+            echo "✅ Nginx configurado y reiniciado correctamente"
 
