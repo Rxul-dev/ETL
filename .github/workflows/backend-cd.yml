@@ -83,20 +83,18 @@ jobs:
             # Crear archivo .env si no existe
             if [ ! -f ".env" ]; then
               echo "📝 Creando archivo .env..."
-              cat > .env << 'ENVEOF'
-# Base de datos principal
-DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/messaging
-
-# Data Warehouse (opcional)
-WAREHOUSE_URL=postgresql://postgres:postgres@dw:5432/warehouse
-
-# Temporal
-TEMPORAL_TARGET=temporal:7233
-TEMPORAL_NAMESPACE=default
-
-# API Base URL
-API_BASE_URL=http://api:8000
-ENVEOF
+              echo "# Base de datos principal" > .env
+              echo "DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/messaging" >> .env
+              echo "" >> .env
+              echo "# Data Warehouse (opcional)" >> .env
+              echo "WAREHOUSE_URL=postgresql://postgres:postgres@dw:5432/warehouse" >> .env
+              echo "" >> .env
+              echo "# Temporal" >> .env
+              echo "TEMPORAL_TARGET=temporal:7233" >> .env
+              echo "TEMPORAL_NAMESPACE=default" >> .env
+              echo "" >> .env
+              echo "# API Base URL" >> .env
+              echo "API_BASE_URL=http://api:8000" >> .env
               echo "✅ Archivo .env creado"
             else
               echo "ℹ️ Archivo .env ya existe"
