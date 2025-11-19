@@ -37,5 +37,7 @@ function App() {
   )
 }
 
+// Frontend deployment trigger
+
 export default App
 
