@@ -10,7 +10,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && secrets.HETZNER_HOST != ''
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,9 @@ jobs:
           fi
       
       - name: Set up Node.js
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        if: env.HETZNER_HOST != ''
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -36,7 +38,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       
       - name: Install dependencies
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        if: env.HETZNER_HOST != ''
         working-directory: ./frontend
         run: |
           if [ -f package-lock.json ]; then
@@ -46,14 +50,17 @@ jobs:
           fi
       
       - name: Build
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        if: env.HETZNER_HOST != ''
         working-directory: ./frontend
         run: npm run build
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
       
       - name: Deploy to Hetzner
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        if: env.HETZNER_HOST != ''
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -63,7 +70,9 @@ jobs:
           target: "/opt/rxul-chat-frontend/dist"
       
       - name: Restart frontend service
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        if: env.HETZNER_HOST != ''
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HETZNER_HOST }}

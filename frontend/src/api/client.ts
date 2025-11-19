@@ -51,10 +51,21 @@ export const usersApi = {
     const response = await apiClient.get<User>(`/users/${id}`)
     return response.data
   },
-  list: async (page: number = 1, page_size: number = 50): Promise<PageResponse<User>> => {
-    const response = await apiClient.get<PageResponse<User>>('/users', {
-      params: { page, page_size },
-    })
+  getByHandle: async (handle: string): Promise<User | null> => {
+    try {
+      const response = await apiClient.get<User>(`/users/by-handle/${handle}`)
+      return response.data
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        return null
+      }
+      throw err
+    }
+  },
+  list: async (page: number = 1, page_size: number = 50, search?: string): Promise<PageResponse<User>> => {
+    const params: any = { page, page_size }
+    // Nota: El backend no tiene búsqueda aún, pero podemos filtrar en el frontend
+    const response = await apiClient.get<PageResponse<User>>('/users', { params })
     return response.data
   },
 }
@@ -71,6 +82,12 @@ export const chatsApi = {
   },
   list: async (page: number = 1, page_size: number = 50): Promise<PageResponse<Chat>> => {
     const response = await apiClient.get<PageResponse<Chat>>('/chats', {
+      params: { page, page_size },
+    })
+    return response.data
+  },
+  getMembers: async (chatId: number, page: number = 1, page_size: number = 50): Promise<PageResponse<{ chat_id: number; user_id: number; role: string; joined_at: string }>> => {
+    const response = await apiClient.get(`/chats/${chatId}/members`, {
       params: { page, page_size },
     })
     return response.data

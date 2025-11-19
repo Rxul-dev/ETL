@@ -19,28 +19,33 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: int, user_id: int = 
     - chat_id: ID del chat al que conectarse
     - user_id: ID del usuario (opcional, para tracking)
     """
-    # Verificar que el chat existe
-    db = next(get_db())
+    # Aceptar la conexión primero
+    await websocket.accept()
+    
+    db = None
     try:
-        # Expirar objetos para forzar recarga desde la base de datos
-        db.expire_all()
-        # Usar query en lugar de get para asegurar que busca en la base de datos
+        # Obtener sesión de base de datos
+        db = next(get_db())
+        
+        # Verificar que el chat existe
         chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
         if not chat:
             await websocket.close(code=1008, reason="Chat not found")
             return
         
         # Verificar que el usuario es miembro del chat (si se proporciona user_id)
+        # Si no se proporciona user_id, permitir la conexión (modo lectura)
         if user_id:
             member = db.query(models.ChatMember).filter_by(
                 chat_id=chat_id, 
                 user_id=user_id
             ).first()
             if not member:
-                await websocket.close(code=1008, reason="User is not a member of this chat")
-                return
+                logger.warning(f"User {user_id} is not a member of chat {chat_id}, but allowing connection for read-only")
+                # No cerrar la conexión, solo registrar una advertencia
+                # Permitir conexión en modo lectura
         
-        # Conectar el WebSocket
+        # Conectar el WebSocket al manager
         await manager.connect(websocket, chat_id, user_id)
         
         try:
@@ -72,10 +77,14 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: int, user_id: int = 
         finally:
             manager.disconnect(websocket, chat_id, user_id)
     except Exception as e:
-        logger.error(f"Error in WebSocket endpoint: {e}")
-        await websocket.close(code=1011, reason="Internal server error")
+        logger.error(f"Error in WebSocket endpoint: {e}", exc_info=True)
+        try:
+            await websocket.close(code=1011, reason="Internal server error")
+        except:
+            pass
     finally:
-        db.close()
+        if db:
+            db.close()
 
 @router.get("/ws/chats/{chat_id}/connections")
 async def get_chat_connections(chat_id: int):

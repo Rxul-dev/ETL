@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && secrets.HETZNER_HOST != ''
+    if: github.ref == 'refs/heads/main'
     
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,9 @@ jobs:
           fi
       
       - name: Deploy to Hetzner
-        if: secrets.HETZNER_HOST != ''
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        if: env.HETZNER_HOST != ''
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.HETZNER_HOST }}
