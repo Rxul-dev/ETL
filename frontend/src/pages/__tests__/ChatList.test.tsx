@@ -3,7 +3,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
-const mockChatsApiList = vi.fn()
+// Usar vi.hoisted() para el mock
+const { mockChatsApiList } = vi.hoisted(() => {
+  return {
+    mockChatsApiList: vi.fn(),
+  }
+})
 
 vi.mock('../../api/client', () => ({
   chatsApi: {
