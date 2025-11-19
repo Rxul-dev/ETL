@@ -83,7 +83,7 @@ jobs:
             # Crear archivo .env si no existe
             if [ ! -f ".env" ]; then
               echo "📝 Creando archivo .env..."
-              cat > .env << EOF
+              cat > .env << 'ENVEOF'
 # Base de datos principal
 DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/messaging
 
@@ -96,14 +96,14 @@ TEMPORAL_NAMESPACE=default
 
 # API Base URL
 API_BASE_URL=http://api:8000
-EOF
+ENVEOF
               echo "✅ Archivo .env creado"
             else
               echo "ℹ️ Archivo .env ya existe"
             fi
             
             # Deploy
-            echo "🛑 Deteniendo contenedores..."
+            echo " Deteniendo contenedores..."
             $DOCKER_COMPOSE down || true
             
             echo "🔨 Construyendo imágenes..."
