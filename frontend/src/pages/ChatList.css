@@ -17,17 +17,19 @@
 .chat-list-header h1 {
   color: #333;
   font-size: 24px;
+  margin: 0;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
 }
 
 .user-info span {
   color: #666;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .logout-button {

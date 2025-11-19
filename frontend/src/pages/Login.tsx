@@ -18,18 +18,38 @@ function Login() {
     setLoading(true)
 
     try {
-      const user = await usersApi.create(handle, displayName)
-      login({
-        id: user.id,
-        handle: user.handle,
-        display_name: user.display_name,
-      })
-      navigate('/chats')
+      // Primero intentar buscar el usuario por handle
+      let user = await usersApi.getByHandle(handle)
+      
+      if (user) {
+        // Usuario existe, iniciar sesión directamente
+        // Opcionalmente actualizar el display_name si cambió
+        if (user.display_name !== displayName) {
+          // Por ahora solo usamos el usuario existente sin actualizar
+          // En el futuro se podría agregar un endpoint para actualizar
+        }
+        login({
+          id: user.id,
+          handle: user.handle,
+          display_name: user.display_name,
+        })
+        navigate('/chats')
+      } else {
+        // Usuario no existe, crear uno nuevo
+        user = await usersApi.create(handle, displayName)
+        login({
+          id: user.id,
+          handle: user.handle,
+          display_name: user.display_name,
+        })
+        navigate('/chats')
+      }
     } catch (err: any) {
       if (err.response?.status === 409) {
+        // Esto no debería pasar ahora, pero por si acaso
         setError('Este handle ya existe. Por favor, elige otro.')
       } else {
-        setError('Error al crear usuario. Por favor, intenta de nuevo.')
+        setError('Error al iniciar sesión. Por favor, intenta de nuevo.')
       }
     } finally {
       setLoading(false)

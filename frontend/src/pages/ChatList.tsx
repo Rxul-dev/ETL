@@ -12,6 +12,7 @@ function ChatList() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [searching, setSearching] = useState(false)
+  const [dmOtherUsers, setDmOtherUsers] = useState<Map<number, User>>(new Map())
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
@@ -25,6 +26,33 @@ function ChatList() {
       setLoading(true)
       const response = await chatsApi.list(1, 50)
       setChats(response.items)
+      
+      // Cargar información de los otros usuarios para chats directos
+      if (user) {
+        const otherUsersMap = new Map<number, User>()
+        const dmChats = response.items.filter(chat => chat.type === 'dm')
+        
+        // Cargar miembros de cada chat DM en paralelo
+        const memberPromises = dmChats.map(async (chat) => {
+          try {
+            const membersResponse = await chatsApi.getMembers(chat.id, 1, 10)
+            // Encontrar el otro usuario (el que no es el usuario actual)
+            const otherMember = membersResponse.items.find(
+              member => member.user_id !== user.id
+            )
+            if (otherMember) {
+              // Obtener la información completa del usuario
+              const otherUser = await usersApi.get(otherMember.user_id)
+              otherUsersMap.set(chat.id, otherUser)
+            }
+          } catch (err) {
+            console.error(`Error loading members for chat ${chat.id}:`, err)
+          }
+        })
+        
+        await Promise.all(memberPromises)
+        setDmOtherUsers(otherUsersMap)
+      }
     } catch (err) {
       setError('Error al cargar los chats')
       console.error(err)
@@ -158,21 +186,29 @@ function ChatList() {
           
           {!loading && !error && chats.length > 0 && (
             <div className="chat-list">
-              {chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className="chat-item"
-                  onClick={() => handleChatClick(chat.id)}
-                >
-                  <div className="chat-item-content">
-                    <h3>{chat.title || `Chat ${chat.type === 'dm' ? 'Directo' : 'Grupo'}`}</h3>
-                    <p className="chat-meta">
-                      {chat.type === 'dm' ? 'Mensaje directo' : 'Grupo'} • ID: {chat.id}
-                    </p>
+              {chats.map((chat) => {
+                // Para chats directos, mostrar el nombre del otro usuario
+                // Para grupos, mostrar el título del grupo
+                const displayName = chat.type === 'dm' 
+                  ? (dmOtherUsers.get(chat.id)?.display_name || 'Usuario desconocido')
+                  : (chat.title || 'Grupo sin título')
+                
+                return (
+                  <div
+                    key={chat.id}
+                    className="chat-item"
+                    onClick={() => handleChatClick(chat.id)}
+                  >
+                    <div className="chat-item-content">
+                      <h3>{displayName}</h3>
+                      <p className="chat-meta">
+                        {chat.type === 'dm' ? 'Mensaje directo' : 'Grupo'} • ID: {chat.id}
+                      </p>
+                    </div>
+                    <div className="chat-arrow">→</div>
                   </div>
-                  <div className="chat-arrow">→</div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

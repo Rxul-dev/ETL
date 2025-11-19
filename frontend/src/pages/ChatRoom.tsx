@@ -18,7 +18,10 @@ function ChatRoom() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [headerVisible, setHeaderVisible] = useState(true)
+  const [lastScrollTop, setLastScrollTop] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const wsServiceRef = useRef<WebSocketService | null>(null)
 
   useEffect(() => {
@@ -169,6 +172,31 @@ function ChatRoom() {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const currentScrollTop = container.scrollTop
+      
+      // Mostrar header al hacer scroll hacia arriba, ocultar al hacer scroll hacia abajo
+      if (currentScrollTop < lastScrollTop || currentScrollTop < 50) {
+        // Scroll hacia arriba o cerca del inicio
+        setHeaderVisible(true)
+      } else if (currentScrollTop > lastScrollTop && currentScrollTop > 100) {
+        // Scroll hacia abajo y más de 100px desde el inicio
+        setHeaderVisible(false)
+      }
+      
+      setLastScrollTop(currentScrollTop)
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, [lastScrollTop])
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -217,7 +245,7 @@ function ChatRoom() {
 
   return (
     <div className="chat-room-container">
-      <header className="chat-room-header">
+      <header className={`chat-room-header ${headerVisible ? 'visible' : 'hidden'}`}>
         <button onClick={() => navigate('/chats')} className="back-button">
           ← Volver
         </button>
@@ -234,7 +262,7 @@ function ChatRoom() {
       </header>
 
       <main className="chat-room-main">
-        <div className="messages-container">
+        <div className="messages-container" ref={messagesContainerRef}>
           {messages.length === 0 ? (
             <div className="empty-messages">No hay mensajes aún</div>
           ) : (

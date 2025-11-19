@@ -51,6 +51,17 @@ export const usersApi = {
     const response = await apiClient.get<User>(`/users/${id}`)
     return response.data
   },
+  getByHandle: async (handle: string): Promise<User | null> => {
+    try {
+      const response = await apiClient.get<User>(`/users/by-handle/${handle}`)
+      return response.data
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        return null
+      }
+      throw err
+    }
+  },
   list: async (page: number = 1, page_size: number = 50, search?: string): Promise<PageResponse<User>> => {
     const params: any = { page, page_size }
     // Nota: El backend no tiene búsqueda aún, pero podemos filtrar en el frontend
