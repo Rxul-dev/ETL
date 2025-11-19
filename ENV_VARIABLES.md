@@ -65,11 +65,29 @@ Para que el deployment automático funcione, configura estos secrets en GitHub (
 
 - **`HETZNER_HOST`**: IP o dominio del servidor Hetzner (ej: `123.45.67.89` o `servidor.tudominio.com`)
 - **`HETZNER_USER`**: Usuario SSH para conectarse al servidor (ej: `root` o `deploy`)
-- **`HETZNER_SSH_KEY`**: Clave privada SSH para autenticación
+- **`HETZNER_SSH_KEY`**: Clave privada SSH para autenticación (debe ser la clave completa, incluyendo `-----BEGIN OPENSSH PRIVATE KEY-----` y `-----END OPENSSH PRIVATE KEY-----`)
 
 ### Opcionales
 
+- **`HETZNER_SSH_KEY_PASSPHRASE`**: Passphrase de la clave SSH (solo si tu clave SSH está protegida con passphrase)
 - **`VITE_API_URL`**: URL de la API para el build del frontend en producción (ej: `https://api.tudominio.com`)
+
+### Nota sobre Claves SSH
+
+Si tu clave SSH está protegida con passphrase, debes configurar el secret `HETZNER_SSH_KEY_PASSPHRASE` en GitHub.
+
+**Recomendación**: Para CI/CD, es mejor usar una clave SSH sin passphrase dedicada solo para deployment. Puedes generar una nueva clave así:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy -N ""
+```
+
+Luego copia la clave pública al servidor:
+```bash
+ssh-copy-id -i ~/.ssh/github_actions_deploy.pub usuario@tu-servidor
+```
+
+Y usa la clave privada (`~/.ssh/github_actions_deploy`) como `HETZNER_SSH_KEY` en GitHub Secrets.
 
 ## Ejemplo de `.env` para Desarrollo Local
 
