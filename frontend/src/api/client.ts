@@ -75,9 +75,12 @@ export const usersApi = {
       const response = await apiClient.get<User>(`/users/by-handle/${handle}`)
       return response.data
     } catch (error: any) {
+      // 404 significa que el usuario no existe, retornar null (no es un error)
       if (error.response?.status === 404) {
         return null
       }
+      // Para otros errores, lanzar la excepción
+      console.error('Error getting user by handle:', error)
       throw error
     }
   },
