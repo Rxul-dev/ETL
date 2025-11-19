@@ -48,24 +48,19 @@ jobs:
             
             cd $DEPLOY_DIR
             
-            # Clonar repositorio si no existe
+            # Clonar repositorio solo si no existe
             if [ ! -d ".git" ]; then
-              echo "📥 Clonando repositorio..."
-              # Si el directorio tiene archivos pero no es git, limpiarlo
-              if [ "$(ls -A $DEPLOY_DIR 2>/dev/null)" ]; then
-                echo "⚠️ Directorio no vacío pero no es git. Limpiando..."
-                cd /tmp
-                sudo rm -rf $DEPLOY_DIR
-                sudo mkdir -p $DEPLOY_DIR
-                sudo chown $USER:$USER $DEPLOY_DIR
-              fi
+              echo "📥 Clonando repositorio (primera vez)..."
               git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
               cd $DEPLOY_DIR
             else
-              echo "🔄 Actualizando repositorio..."
+              echo "🔄 Actualizando repositorio (pull suave)..."
+              # Solo hacer pull, sin reset ni clean para no perder cambios locales
               git fetch origin
-              git reset --hard origin/main
-              git clean -fd
+              git pull origin main || {
+                echo "⚠️ Pull falló, intentando merge..."
+                git merge origin/main || echo "⚠️ Merge falló, pero continuando..."
+              }
             fi
             
             # Verificar docker-compose (puede ser 'docker compose' o 'docker-compose')
@@ -80,9 +75,9 @@ jobs:
             
             echo "🐳 Usando: $DOCKER_COMPOSE"
             
-            # Crear archivo .env si no existe
+            # Crear archivo .env solo si no existe (nunca sobreescribir)
             if [ ! -f ".env" ]; then
-              echo "📝 Creando archivo .env..."
+              echo "📝 Creando archivo .env (primera vez)..."
               echo "# Base de datos principal" > .env
               echo "DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/messaging" >> .env
               echo "" >> .env
@@ -97,18 +92,25 @@ jobs:
               echo "API_BASE_URL=http://api:8000" >> .env
               echo "✅ Archivo .env creado"
             else
-              echo "ℹ️ Archivo .env ya existe"
+              echo "ℹ️ Archivo .env ya existe - respetando configuración existente"
             fi
             
-            # Deploy
-            echo " Deteniendo contenedores..."
-            $DOCKER_COMPOSE down || true
+            # Deploy conservador - solo reconstruir y actualizar si es necesario
+            echo "🔄 Verificando estado de contenedores..."
             
+            # Construir imágenes nuevas
             echo "🔨 Construyendo imágenes..."
             $DOCKER_COMPOSE build
             
-            echo "🚀 Iniciando contenedores..."
+            # Actualizar contenedores solo si hay cambios
+            # up -d es idempotente: no detiene contenedores que ya están corriendo
+            # solo los actualiza si la imagen o configuración cambió
+            echo "🚀 Actualizando contenedores (solo si hay cambios)..."
             $DOCKER_COMPOSE up -d
+            
+            # Mostrar estado
+            echo "📊 Estado de contenedores:"
+            $DOCKER_COMPOSE ps
             
             echo "📋 Últimos logs:"
             $DOCKER_COMPOSE logs --tail=50
