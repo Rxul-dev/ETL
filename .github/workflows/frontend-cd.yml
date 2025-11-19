@@ -74,6 +74,8 @@ jobs:
             set -e
             echo "🧹 Limpiando archivos de build antiguos..."
             DEPLOY_DIR="/opt/rxul-chat-frontend/dist"
+            # Crear directorio padre si no existe
+            sudo mkdir -p /opt/rxul-chat-frontend
             if [ -d "$DEPLOY_DIR" ]; then
               sudo rm -rf "$DEPLOY_DIR"/*
               sudo rm -rf "$DEPLOY_DIR"/.* 2>/dev/null || true
@@ -82,7 +84,9 @@ jobs:
               sudo mkdir -p "$DEPLOY_DIR"
               echo "✅ Directorio creado"
             fi
-            sudo chown -R www-data:www-data "$DEPLOY_DIR" || true
+            # Asegurar permisos del directorio padre
+            sudo chown -R $USER:$USER /opt/rxul-chat-frontend || true
+            sudo chmod 755 /opt/rxul-chat-frontend || true
       
       - name: Deploy to Hetzner
         if: steps.check-secrets.outputs.skip != 'true'
@@ -92,8 +96,93 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
-          source: "frontend/dist/." # Copiar el contenido de dist, no la carpeta dist
-          target: "/opt/rxul-chat-frontend/dist"
+          source: "frontend/dist/*" # Copiar todos los archivos de dist
+          target: "/tmp/frontend-deploy"
+      
+      - name: Move files to correct location
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
+          script: |
+            set -e
+            echo "📦 Moviendo archivos a la ubicación correcta..."
+            DEPLOY_DIR="/opt/rxul-chat-frontend/dist"
+            TEMP_DIR="/tmp/frontend-deploy"
+            
+            # Si los archivos están en una subcarpeta frontend, moverlos
+            if [ -d "$TEMP_DIR/frontend/dist" ]; then
+              echo "   Archivos en $TEMP_DIR/frontend/dist, moviendo..."
+              sudo mv "$TEMP_DIR/frontend/dist"/* "$DEPLOY_DIR/" 2>/dev/null || true
+              sudo mv "$TEMP_DIR/frontend/dist"/.* "$DEPLOY_DIR/" 2>/dev/null || true
+            elif [ -d "$TEMP_DIR/frontend" ]; then
+              echo "   Archivos en $TEMP_DIR/frontend, moviendo..."
+              sudo mv "$TEMP_DIR/frontend"/* "$DEPLOY_DIR/" 2>/dev/null || true
+              sudo mv "$TEMP_DIR/frontend"/.* "$DEPLOY_DIR/" 2>/dev/null || true
+            elif [ -d "$TEMP_DIR/dist" ]; then
+              echo "   Archivos en $TEMP_DIR/dist, moviendo..."
+              sudo mv "$TEMP_DIR/dist"/* "$DEPLOY_DIR/" 2>/dev/null || true
+              sudo mv "$TEMP_DIR/dist"/.* "$DEPLOY_DIR/" 2>/dev/null || true
+            else
+              echo "   Archivos directamente en $TEMP_DIR, moviendo..."
+              sudo mv "$TEMP_DIR"/* "$DEPLOY_DIR/" 2>/dev/null || true
+              sudo mv "$TEMP_DIR"/.* "$DEPLOY_DIR/" 2>/dev/null || true
+            fi
+            
+            # Limpiar directorio temporal
+            sudo rm -rf "$TEMP_DIR"
+            echo "✅ Archivos movidos correctamente"
+      
+      - name: Set permissions and verify deployment
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE }}
+          script: |
+            set -e
+            echo "🔧 Configurando permisos..."
+            DEPLOY_DIR="/opt/rxul-chat-frontend/dist"
+            
+            # Asegurar que el directorio existe
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "❌ Error: Directorio $DEPLOY_DIR no existe"
+              exit 1
+            fi
+            
+            # Establecer permisos correctos
+            # www-data necesita leer los archivos, pero el usuario actual los copió
+            sudo chown -R www-data:www-data "$DEPLOY_DIR"
+            sudo chmod -R 755 "$DEPLOY_DIR"
+            sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \;
+            sudo find "$DEPLOY_DIR" -type d -exec chmod 755 {} \;
+            
+            echo "✅ Permisos configurados"
+            
+            # Verificar que los archivos existen
+            echo "📋 Verificando archivos desplegados..."
+            if [ -f "$DEPLOY_DIR/index.html" ]; then
+              echo "✅ index.html existe"
+              ls -la "$DEPLOY_DIR" | head -10
+            else
+              echo "❌ Error: index.html no existe en $DEPLOY_DIR"
+              echo "Contenido del directorio:"
+              ls -la "$DEPLOY_DIR" || echo "Directorio vacío o no accesible"
+              exit 1
+            fi
+            
+            # Verificar que Nginx puede leer los archivos
+            echo "🔍 Verificando acceso de Nginx..."
+            if sudo -u www-data test -r "$DEPLOY_DIR/index.html"; then
+              echo "✅ Nginx puede leer index.html"
+            else
+              echo "⚠️ Advertencia: Nginx puede no poder leer los archivos"
+            fi
       
       - name: Copy nginx configuration
         if: steps.check-secrets.outputs.skip != 'true'
