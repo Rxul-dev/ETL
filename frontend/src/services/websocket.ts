@@ -22,7 +22,14 @@ export class WebSocketService {
       this.chatId = chatId
       this.userId = userId || null
 
-      const wsUrl = `ws://localhost:8000/ws/chats/${chatId}${userId ? `?user_id=${userId}` : ''}`
+      // Construir URL del WebSocket dinámicamente
+      // En desarrollo: ws://localhost:8000/ws/...
+      // En producción: ws://host/ws/... (nginx proxy)
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const host = import.meta.env.DEV 
+        ? 'localhost:8000' 
+        : window.location.host
+      const wsUrl = `${protocol}//${host}/ws/chats/${chatId}${userId ? `?user_id=${userId}` : ''}`
       this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
