@@ -1,20 +1,10 @@
-/**
- * Configuración de URLs para API y WebSocket
- * 
- * Lógica simplificada:
- * - Si VITE_API_URL está definido, usarlo
- * - Si no, usar la IP pública de la VM por defecto: http://91.98.64.119:8000
- */
+
 
 // IP pública de la VM (Hetzner)
 const DEFAULT_VM_IP = '91.98.64.119'
 const DEFAULT_API_URL = `http://${DEFAULT_VM_IP}:8000`
 
-/**
- * Obtiene la URL base para las peticiones HTTP (REST API)
- */
 export function getApiBaseUrl(): string {
-  // Si VITE_API_URL está definido y no está vacío, usarlo
   const viteApiUrl = import.meta.env.VITE_API_URL
   if (viteApiUrl && viteApiUrl.trim() !== '') {
     const url = viteApiUrl.trim()

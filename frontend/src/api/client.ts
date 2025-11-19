@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { getApiBaseUrl } from '../config/api'
 
-// Obtener la URL base de la API según el entorno
 const API_BASE_URL = getApiBaseUrl()
 
 export const apiClient = axios.create({
