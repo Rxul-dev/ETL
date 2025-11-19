@@ -62,7 +62,6 @@ vi.mock('react-router-dom', async () => {
 
 // Importar después de los mocks
 import Login from '../Login'
-import { useAuthStore } from '../../store/authStore'
 
 describe('Login', () => {
   beforeEach(() => {

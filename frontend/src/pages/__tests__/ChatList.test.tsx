@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
-import * as apiClient from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
+
+const mockChatsApiList = vi.fn()
+
+vi.mock('../../api/client', () => ({
+  chatsApi: {
+    list: mockChatsApiList,
+  },
+}))
 
 vi.mock('../../store/authStore')
 
@@ -16,14 +23,11 @@ describe('ChatList', () => {
     { id: 2, type: 'dm' as const, title: null, created_at: new Date().toISOString() },
   ]
   const mockLogout = vi.fn()
-  let listSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockLogout.mockClear()
-    
-    // Usar spyOn para mockear después de importar
-    listSpy = vi.spyOn(apiClient.chatsApi, 'list')
+    mockChatsApiList.mockClear()
     
     vi.mocked(useAuthStore).mockReturnValue({
       user: mockUser,
@@ -34,7 +38,7 @@ describe('ChatList', () => {
   })
 
   it('renders chat list', async () => {
-    listSpy.mockResolvedValue({
+    mockChatsApiList.mockResolvedValue({
       items: mockChats,
       total: 2,
       page: 1,
@@ -54,7 +58,7 @@ describe('ChatList', () => {
   })
 
   it('shows loading state', () => {
-    listSpy.mockImplementation(() => new Promise(() => {}))
+    mockChatsApiList.mockImplementation(() => new Promise(() => {}))
 
     render(
       <BrowserRouter>
@@ -66,7 +70,7 @@ describe('ChatList', () => {
   })
 
   it('shows empty state when no chats', async () => {
-    listSpy.mockResolvedValue({
+    mockChatsApiList.mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
