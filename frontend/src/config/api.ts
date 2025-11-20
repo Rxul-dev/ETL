@@ -3,6 +3,7 @@
 // IP pública de la VM (Hetzner)
 const DEFAULT_VM_IP = '91.98.64.119'
 const DEFAULT_API_URL = `http://${DEFAULT_VM_IP}:8000`
+// const DEFAULT_API_URL = `http://localhost:8000` //cambiar luego
 
 export function getApiBaseUrl(): string {
   const viteApiUrl = import.meta.env.VITE_API_URL
@@ -12,8 +13,6 @@ export function getApiBaseUrl(): string {
     return url
   }
   
-  // Por defecto: usar la IP pública de la VM
-  console.log('[API Config] Using default VM IP:', DEFAULT_API_URL)
   return DEFAULT_API_URL
 }
 
@@ -35,7 +34,6 @@ export function getWebSocketBaseUrl(): string {
     }
   }
   
-  // Por defecto: usar la IP pública de la VM para WebSocket
-  return `ws://${DEFAULT_VM_IP}:8000`
+  return `ws://${DEFAULT_VM_IP}:8000` 
 }
 

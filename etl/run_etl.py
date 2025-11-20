@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 from datetime import datetime
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-WAREHOUSE_URL = os.getenv("WAREHOUSE_URL", "postgresql://postgres:postgres@localhost:5432/warehouse")
+WAREHOUSE_URL = os.getenv("WAREHOUSE_URL", "postgresql://postgres:tes$a5410@localhost:5432/warehouse")
 DDL_PATH = os.path.join(os.path.dirname(__file__), "ddl.sql")
 
 PAGE_SIZE = 250

@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
 # Operacional (API)
-DATABASE_URL = os.getenv( "DATABASE_URL","postgresql+psycopg2://postgres:postgres@localhost:5432/messaging")
+DATABASE_URL = os.getenv( "DATABASE_URL","postgresql+psycopg2://postgres:o$ita4070@localhost:5432/messaging")
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

@@ -17,7 +17,7 @@ from decimal import Decimal
 logger = logging.getLogger(__name__)
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
-WAREHOUSE_URL = os.getenv("WAREHOUSE_URL", "postgresql://postgres:postgres@dw:5432/warehouse")
+WAREHOUSE_URL = os.getenv("WAREHOUSE_URL", "postgresql://postgres:tes$a5410@dw:5432/warehouse")
 
 
 def _pg():

@@ -1,12 +1,13 @@
 services:
   db:
     image: postgres:16
+    env_file: .env
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: messaging
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -24,25 +25,26 @@ services:
       temporal:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - .:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
-      TEMPORAL_TARGET: temporal:7233
-      TEMPORAL_NAMESPACE: default
-      API_BASE_URL: http://api:8000
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/messaging
-      WAREHOUSE_URL: postgresql://postgres:postgres@dw:5432/warehouse
+      TEMPORAL_TARGET: ${TEMPORAL_TARGET}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE}
+      API_BASE_URL: ${API_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      WAREHOUSE_URL: ${WAREHOUSE_URL}
 
   dw:
     image: postgres:16
+    env_file: .env
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${DW_PASSWORD}
       POSTGRES_DB: warehouse
     ports:
-      - "5440:5432"
+      - "127.0.0.1:5440:5432"
     volumes:
       - pgdata_dw:/var/lib/postgresql/data
     healthcheck:
@@ -77,7 +79,7 @@ services:
       POSTGRES_PWD: temporal
       POSTGRES_SEEDS: temporal-postgres
     ports:
-      - "7233:7233"
+      - "127.0.0.1:7233:7233"
     healthcheck:
       test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
       interval: 10s
@@ -86,25 +88,25 @@ services:
 
   temporal-ui:
     image: temporalio/ui:latest
+    env_file: .env
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-      TEMPORAL_CORS_ORIGINS: http://localhost:8000
+      TEMPORAL_CORS_ORIGINS: ${API_BASE_URL}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - temporal
 
   etl-worker:
     build: .
-    # Fuerza a ejecutar el worker (no Uvicorn)
-    entrypoint: ["python","-m","app.temporal.worker"]
+    entrypoint: ["python", "-m", "app.temporal.worker"]
+    env_file: .env
     environment:
-      TEMPORAL_TARGET: temporal:7233
-      TEMPORAL_NAMESPACE: default
-      API_BASE_URL: http://api:8000
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/messaging
-      # Para psycopg2.connect en activities usamos 'postgresql://'
-      WAREHOUSE_URL: postgresql://postgres:postgres@dw:5432/warehouse
+      TEMPORAL_TARGET: ${TEMPORAL_TARGET}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE}
+      API_BASE_URL: ${API_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      WAREHOUSE_URL: ${WAREHOUSE_URL}
     depends_on:
       db:
         condition: service_healthy
@@ -121,10 +123,10 @@ services:
   spark-master:
     image: apache/spark:3.5.1
     container_name: spark-master
-    command: ["/opt/spark/bin/spark-class","org.apache.spark.deploy.master.Master","--host","spark-master"]
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master"]
     ports:
-      - "8081:8080"
-      - "7077:7077"
+      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:7077:7077"
     volumes:
       - ./spark/apps:/opt/spark-apps
       - ./spark/data:/opt/spark-data
@@ -135,7 +137,7 @@ services:
   spark-worker:
     image: apache/spark:3.5.1
     container_name: spark-worker
-    command: ["/opt/spark/bin/spark-class","org.apache.spark.deploy.worker.Worker","spark://spark-master:7077"]
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
     environment:
       - SPARK_WORKER_MEMORY=2G
       - SPARK_WORKER_CORES=2
@@ -148,14 +150,15 @@ services:
   metabase:
     image: metabase/metabase:latest
     container_name: metabase
+    env_file: .env
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       MB_DB_TYPE: postgres
       MB_DB_DBNAME: metabase
       MB_DB_PORT: 5432
       MB_DB_USER: postgres
-      MB_DB_PASS: postgres
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
       MB_DB_HOST: metabase-db
     volumes:
       - metabase-data:/metabase-data
@@ -168,9 +171,10 @@ services:
   metabase-db:
     image: postgres:16
     container_name: metabase-db
+    env_file: .env
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${METABASE_DB_PASSWORD}
       POSTGRES_DB: metabase
     volumes:
       - metabase-db-data:/var/lib/postgresql/data
@@ -180,12 +184,11 @@ services:
       timeout: 5s
       retries: 10
 
-  # Observabilidad - Prometheus
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
@@ -202,19 +205,17 @@ services:
       - postgres-exporter-metabase
     restart: unless-stopped
 
-  # Observabilidad - Loki
   loki:
     image: grafana/loki:latest
     container_name: loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped
 
-  # Observabilidad - Promtail
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
@@ -227,15 +228,16 @@ services:
       - loki
     restart: unless-stopped
 
-  # Observabilidad - Grafana
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    env_file: .env
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana
@@ -246,48 +248,47 @@ services:
       - loki
     restart: unless-stopped
 
-  # PostgreSQL Exporter - Base de datos principal
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres-exporter
+    env_file: .env
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/messaging?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://postgres:${DB_PASSWORD}@db:5432/messaging?sslmode=disable"
     ports:
-      - "9187:9187"
+      - "127.0.0.1:9187:9187"
     depends_on:
       - db
     restart: unless-stopped
 
-  # PostgreSQL Exporter - Data Warehouse
   postgres-exporter-dw:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres-exporter-dw
+    env_file: .env
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:postgres@dw:5432/warehouse?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://postgres:${DW_PASSWORD}@dw:5432/warehouse?sslmode=disable"
     ports:
-      - "9188:9187"
+      - "127.0.0.1:9188:9187"
     depends_on:
       - dw
     restart: unless-stopped
 
-  # PostgreSQL Exporter - Metabase DB
   postgres-exporter-metabase:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres-exporter-metabase
+    env_file: .env
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:postgres@metabase-db:5432/metabase?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://postgres:${METABASE_DB_PASSWORD}@metabase-db:5432/metabase?sslmode=disable"
     ports:
-      - "9189:9187"
+      - "127.0.0.1:9189:9187"
     depends_on:
       - metabase-db
     restart: unless-stopped
 
-  # Node Exporter - Métricas del sistema
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
     ports:
-      - "9100:9100"
+      - "127.0.0.1:9100:9100"
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'

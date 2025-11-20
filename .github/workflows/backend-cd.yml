@@ -76,13 +76,17 @@ jobs:
             echo "🐳 Usando: $DOCKER_COMPOSE"
             
             # Crear archivo .env solo si no existe (nunca sobreescribir)
+            # NOTA: Las contraseñas deben estar en el archivo .env del servidor, no en el código
             if [ ! -f ".env" ]; then
               echo "📝 Creando archivo .env (primera vez)..."
+              echo "⚠️ ADVERTENCIA: Debes configurar las contraseñas manualmente en .env"
               echo "# Base de datos principal" > .env
-              echo "DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/messaging" >> .env
+              echo "# DATABASE_URL debe configurarse con las contraseñas correctas" >> .env
+              echo "DATABASE_URL=postgresql+psycopg2://postgres:CHANGE_ME@db:5432/messaging" >> .env
               echo "" >> .env
               echo "# Data Warehouse (opcional)" >> .env
-              echo "WAREHOUSE_URL=postgresql://postgres:postgres@dw:5432/warehouse" >> .env
+              echo "# WAREHOUSE_URL debe configurarse con las contraseñas correctas" >> .env
+              echo "WAREHOUSE_URL=postgresql://postgres:CHANGE_ME@dw:5432/warehouse" >> .env
               echo "" >> .env
               echo "# Temporal" >> .env
               echo "TEMPORAL_TARGET=temporal:7233" >> .env
@@ -90,7 +94,14 @@ jobs:
               echo "" >> .env
               echo "# API Base URL" >> .env
               echo "API_BASE_URL=http://api:8000" >> .env
-              echo "✅ Archivo .env creado"
+              echo "" >> .env
+              echo "# CORS (opcional)" >> .env
+              echo "# CORS_ORIGINS=http://91.98.64.119,http://localhost:5173" >> .env
+              echo "" >> .env
+              echo "# Grafana Admin Password (opcional)" >> .env
+              echo "# GRAFANA_ADMIN_PASSWORD=ChangeMe123!" >> .env
+              echo "✅ Archivo .env creado con valores por defecto"
+              echo "⚠️ IMPORTANTE: Actualiza las contraseñas (CHANGE_ME) antes de iniciar los servicios"
             else
               echo "ℹ️ Archivo .env ya existe - respetando configuración existente"
             fi
