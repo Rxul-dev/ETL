@@ -69,7 +69,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           script: |
             set -e
             echo "🧹 Limpiando archivos de build antiguos..."
@@ -95,7 +94,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           source: "frontend/dist/*" # Copiar todos los archivos de dist
           target: "/tmp/frontend-deploy"
       
@@ -106,7 +104,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           script: |
             set -e
             echo "📦 Moviendo archivos a la ubicación correcta..."
@@ -143,7 +140,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           script: |
             set -e
             echo "🔧 Configurando permisos..."
@@ -191,7 +187,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           source: "nginx/rxul-chat-frontend.conf"
           target: "/tmp/rxul-chat-frontend.conf"
       
@@ -202,7 +197,6 @@ jobs:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          passphrase: ${{ secrets.HETZNER_SSH_KEY_PASSPHRASE || '' }}
           script: |
             set -e
             
