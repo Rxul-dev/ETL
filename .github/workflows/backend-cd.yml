@@ -81,12 +81,15 @@ jobs:
               echo "📝 Creando archivo .env (primera vez)..."
               echo "⚠️ ADVERTENCIA: Debes configurar las contraseñas manualmente en .env"
               echo "# Base de datos principal" > .env
-              echo "# DATABASE_URL debe configurarse con las contraseñas correctas" >> .env
+              echo "DB_PASSWORD=CHANGE_ME" >> .env
               echo "DATABASE_URL=postgresql+psycopg2://postgres:CHANGE_ME@db:5432/messaging" >> .env
               echo "" >> .env
               echo "# Data Warehouse (opcional)" >> .env
-              echo "# WAREHOUSE_URL debe configurarse con las contraseñas correctas" >> .env
+              echo "DW_PASSWORD=CHANGE_ME" >> .env
               echo "WAREHOUSE_URL=postgresql://postgres:CHANGE_ME@dw:5432/warehouse" >> .env
+              echo "" >> .env
+              echo "# Metabase" >> .env
+              echo "METABASE_DB_PASSWORD=CHANGE_ME" >> .env
               echo "" >> .env
               echo "# Temporal" >> .env
               echo "TEMPORAL_TARGET=temporal:7233" >> .env
@@ -95,15 +98,17 @@ jobs:
               echo "# API Base URL" >> .env
               echo "API_BASE_URL=http://api:8000" >> .env
               echo "" >> .env
+              echo "# Grafana Admin Password (opcional)" >> .env
+              echo "GRAFANA_ADMIN_PASSWORD=ChangeMe123!" >> .env
+              echo "" >> .env
               echo "# CORS (opcional)" >> .env
               echo "# CORS_ORIGINS=http://91.98.64.119,http://localhost:5173" >> .env
-              echo "" >> .env
-              echo "# Grafana Admin Password (opcional)" >> .env
-              echo "# GRAFANA_ADMIN_PASSWORD=ChangeMe123!" >> .env
               echo "✅ Archivo .env creado con valores por defecto"
               echo "⚠️ IMPORTANTE: Actualiza las contraseñas (CHANGE_ME) antes de iniciar los servicios"
+              echo "   Variables requeridas: DB_PASSWORD, DW_PASSWORD, METABASE_DB_PASSWORD"
             else
               echo "ℹ️ Archivo .env ya existe - respetando configuración existente"
+              echo "⚠️ Verifica que el .env tenga las variables: DB_PASSWORD, DW_PASSWORD, METABASE_DB_PASSWORD"
             fi
             
             # Deploy conservador - solo reconstruir y actualizar si es necesario
