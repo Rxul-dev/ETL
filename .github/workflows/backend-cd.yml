@@ -78,12 +78,32 @@ jobs:
             
             echo "🐳 Usando: $DOCKER_COMPOSE"
             
+            # Verificar si Docker está instalado
+            if ! command -v docker &> /dev/null; then
+              echo "⚠️ Docker no está instalado, instalando..."
+              # Instalar Docker
+              sudo apt-get update
+              sudo apt-get install -y ca-certificates curl gnupg lsb-release
+              sudo mkdir -p /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              echo "✅ Docker instalado"
+            fi
+            
             # Verificar e iniciar Docker si no está corriendo
             if ! sudo systemctl is-active --quiet docker; then
               echo "⚠️ Docker no está corriendo, iniciando..."
               sudo systemctl start docker
               sudo systemctl enable docker
               echo "✅ Docker iniciado"
+            fi
+            
+            # Agregar usuario al grupo docker para evitar usar sudo (opcional pero útil)
+            if ! groups $USER | grep -q docker; then
+              echo "⚠️ Agregando usuario al grupo docker..."
+              sudo usermod -aG docker $USER
             fi
             
             # Verificar que Docker esté funcionando
