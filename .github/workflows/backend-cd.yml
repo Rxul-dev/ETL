@@ -78,6 +78,22 @@ jobs:
             
             echo "🐳 Usando: $DOCKER_COMPOSE"
             
+            # Verificar e iniciar Docker si no está corriendo
+            if ! sudo systemctl is-active --quiet docker; then
+              echo "⚠️ Docker no está corriendo, iniciando..."
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              echo "✅ Docker iniciado"
+            fi
+            
+            # Verificar que Docker esté funcionando
+            if ! sudo docker info &> /dev/null; then
+              echo "❌ Error: Docker no está funcionando correctamente"
+              exit 1
+            fi
+            
+            echo "✅ Docker está corriendo"
+            
             # Crear archivo .env solo si no existe (nunca sobreescribir)
             # NOTA: Las contraseñas deben estar en el archivo .env del servidor, no en el código
             if [ ! -f ".env" ]; then
