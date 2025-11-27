@@ -171,21 +171,26 @@ jobs:
             $DOCKER_COMPOSE down --remove-orphans || true
             
             # Esperar a que los contenedores se eliminen completamente
-            echo "⏳ Esperando a que los contenedores se eliminen..."
-            sleep 10
+            echo "⏳ Esperando a que los contenedores se eliminen completamente..."
+            sleep 15
             
             # Limpiar contenedores huérfanos si existen
             echo "🧹 Limpiando contenedores huérfanos..."
             docker container prune -f || true
             
             # Esperar un momento más para asegurar que todo esté limpio
+            echo "⏳ Esperando un momento más..."
             sleep 5
             
             # Iniciar contenedores
             echo "🚀 Iniciando contenedores..."
-            $DOCKER_COMPOSE up -d --remove-orphans
+            $DOCKER_COMPOSE up -d --remove-orphans || {
+              echo "⚠️ Error al iniciar contenedores, intentando forzar recreación..."
+              $DOCKER_COMPOSE up -d --force-recreate --remove-orphans
+            }
             
             # Esperar un momento para que los contenedores inicien
+            echo "⏳ Esperando a que los contenedores inicien..."
             sleep 10
             
             echo "📊 Estado de contenedores:"
@@ -216,10 +221,32 @@ jobs:
             fi
             if command -v docker-compose &> /dev/null; then
               DOCKER_COMPOSE="docker-compose"
-            else
+            elif docker compose version &> /dev/null; then
               DOCKER_COMPOSE="docker compose"
+            else
+              echo "⚠️ docker-compose no encontrado, instalando..."
+              sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              DOCKER_COMPOSE="docker-compose"
             fi
+            echo "🔨 Construyendo imágenes..."
             $DOCKER_COMPOSE build
-            $DOCKER_COMPOSE up -d
+            echo "🛑 Deteniendo contenedores existentes..."
+            $DOCKER_COMPOSE down --remove-orphans || true
+            echo "⏳ Esperando a que los contenedores se eliminen completamente..."
+            sleep 15
+            echo "🧹 Limpiando contenedores huérfanos..."
+            sudo docker container prune -f || true
+            echo "⏳ Esperando un momento más..."
+            sleep 5
+            echo "🚀 Iniciando contenedores..."
+            $DOCKER_COMPOSE up -d --remove-orphans || {
+              echo "⚠️ Error al iniciar contenedores, intentando forzar recreación..."
+              $DOCKER_COMPOSE up -d --force-recreate --remove-orphans
+            }
+            echo "⏳ Esperando a que los contenedores inicien..."
+            sleep 10
+            echo "📊 Estado de contenedores:"
             $DOCKER_COMPOSE ps
+            echo "✅ Backend desplegado correctamente en Hetzner"
 
