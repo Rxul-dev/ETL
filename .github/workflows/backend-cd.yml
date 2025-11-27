@@ -54,11 +54,21 @@ jobs:
               cd $DEPLOY_DIR
             else
               echo "🔄 Actualizando repositorio (pull suave)..."
-              # Solo hacer pull, sin reset ni clean para no perder cambios locales
-              git fetch origin
+              # Limpiar referencias bloqueadas o corruptas
+              git remote prune origin || true
+              # Intentar actualizar referencias
+              git fetch origin --prune || {
+                echo "⚠️ Fetch falló, limpiando referencias..."
+                rm -rf .git/refs/remotes/origin/* || true
+                git fetch origin
+              }
+              # Intentar pull
               git pull origin main || {
-                echo "⚠️ Pull falló, intentando merge..."
-                git merge origin/main || echo "⚠️ Merge falló, pero continuando..."
+                echo "⚠️ Pull falló, intentando reset suave..."
+                git reset --hard origin/main || {
+                  echo "⚠️ Reset falló, intentando merge..."
+                  git merge origin/main || echo "⚠️ Merge falló, pero continuando..."
+                }
               }
             fi
             
