@@ -7,8 +7,13 @@ variable "do_token" {
 }
 
 variable "ssh_key_id" {
-  description = "SSH key ID to use for droplets"
+  description = "SSH key ID to use for droplets (must be a number, e.g., '12345678')"
   type        = string
+  
+  validation {
+    condition     = var.ssh_key_id != "" && var.ssh_key_id != null
+    error_message = "ssh_key_id must not be empty. Please configure DO_SSH_KEY_ID secret in GitHub."
+  }
 }
 
 variable "region" {

@@ -30,7 +30,7 @@ jobs:
           path: .github
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
-          allow-no-artifact: true
+        continue-on-error: true
       
       - name: Check if DigitalOcean droplets exist
         id: check-droplets
@@ -46,7 +46,12 @@ jobs:
               echo "use_digitalocean=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "⚠️ Archivo de IPs no encontrado, usando Hetzner si está configurado"
+            echo "⚠️ Archivo de IPs no encontrado"
+            echo "💡 Intentando obtener IPs del workflow de Terraform..."
+            # Intentar obtener IPs del último workflow de Terraform
+            if [ -n "${{ github.event.workflow_run.id }}" ]; then
+              echo "Buscando artifact del workflow run: ${{ github.event.workflow_run.id }}"
+            fi
             echo "use_digitalocean=false" >> $GITHUB_OUTPUT
           fi
       

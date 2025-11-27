@@ -19,13 +19,31 @@ jobs:
       - name: Check Terraform secrets
         id: check-secrets
         run: |
+          # Usar DO_SSH_KEY_ID si existe, sino usar SSH_KEY_ID
+          SSH_KEY_ID="${{ secrets.DO_SSH_KEY_ID || secrets.SSH_KEY_ID }}"
+          
           if [ -z "${{ secrets.DO_TOKEN }}" ]; then
             echo "⚠️ DO_TOKEN secret is not configured. Skipping Terraform apply."
             echo "To enable Terraform, configure the following secrets in GitHub:"
             echo "  - DO_TOKEN (DigitalOcean API token)"
-            echo "  - DO_SSH_KEY_ID (SSH key ID in DigitalOcean)"
+            echo "  - SSH_KEY_ID o DO_SSH_KEY_ID (SSH key ID in DigitalOcean)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          elif [ -z "$SSH_KEY_ID" ]; then
+            echo "⚠️ SSH_KEY_ID o DO_SSH_KEY_ID secret is not configured or is empty. Skipping Terraform apply."
+            echo "To enable Terraform, configure the following secrets in GitHub:"
+            echo "  - DO_TOKEN (DigitalOcean API token)"
+            echo "  - SSH_KEY_ID o DO_SSH_KEY_ID (SSH key ID in DigitalOcean - must be a number)"
+            echo ""
+            echo "💡 Para obtener el ID de tu SSH key:"
+            echo "   1. Ve a https://cloud.digitalocean.com/account/security"
+            echo "   2. Encuentra tu clave SSH"
+            echo "   3. El ID es el número que aparece en la lista"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
+            echo "✅ Secrets configurados correctamente"
+            echo "DO_TOKEN: configurado" 
+            echo "SSH_KEY_ID: $SSH_KEY_ID"
+            echo "ssh_key_id=$SSH_KEY_ID" >> $GITHUB_OUTPUT
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
       
@@ -40,7 +58,7 @@ jobs:
         working-directory: ./terraform/digitalocean
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: terraform init
       
       - name: Terraform Plan
@@ -48,7 +66,7 @@ jobs:
         working-directory: ./terraform/digitalocean
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: terraform plan -out=tfplan
       
       - name: Terraform Apply
@@ -56,7 +74,7 @@ jobs:
         working-directory: ./terraform/digitalocean
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: terraform apply -auto-approve tfplan
       
       - name: Get Droplet IPs
@@ -65,7 +83,7 @@ jobs:
         working-directory: ./terraform/digitalocean
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: |
           # Obtener IPs de los droplets
           BACKEND_IP=$(terraform output -raw backend_prod_ip)
@@ -106,7 +124,7 @@ jobs:
         working-directory: ./terraform/digitalocean
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: |
           echo "## 🚀 Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -124,3 +142,21 @@ jobs:
           name: droplet-ips
           path: .github/droplet-ips.json
           retention-days: 30
+      
+      - name: Set Outputs for Other Workflows
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
+        run: |
+          # Guardar IPs como outputs del job para que otros workflows puedan usarlas
+          BACKEND_IP=$(terraform output -raw backend_prod_ip)
+          FRONTEND_IP=$(terraform output -raw frontend_prod_ip)
+          echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
+          echo "frontend_ip=$FRONTEND_IP" >> $GITHUB_OUTPUT
+          echo "metabase_ip=$(terraform output -raw metabase_prod_ip)" >> $GITHUB_OUTPUT
+          echo "spark_ip=$(terraform output -raw spark_prod_ip)" >> $GITHUB_OUTPUT
+          echo "temporal_ip=$(terraform output -raw temporal_prod_ip)" >> $GITHUB_OUTPUT
+          echo "grafana_prod_ip=$(terraform output -raw grafana_prod_ip)" >> $GITHUB_OUTPUT
+          echo "grafana_staging_ip=$(terraform output -raw grafana_staging_ip)" >> $GITHUB_OUTPUT
