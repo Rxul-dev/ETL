@@ -157,11 +157,27 @@ jobs:
             echo "🔨 Construyendo imágenes..."
             $DOCKER_COMPOSE build
             
-            # Actualizar contenedores solo si hay cambios
-            # up -d es idempotente: no detiene contenedores que ya están corriendo
-            # solo los actualiza si la imagen o configuración cambió
-            echo "🚀 Actualizando contenedores (solo si hay cambios)..."
-            $DOCKER_COMPOSE up -d
+            # Detener contenedores existentes para evitar conflictos de nombres
+            echo "🛑 Deteniendo contenedores existentes..."
+            $DOCKER_COMPOSE down --remove-orphans || true
+            
+            # Esperar a que los contenedores se eliminen completamente
+            echo "⏳ Esperando a que los contenedores se eliminen..."
+            sleep 10
+            
+            # Limpiar contenedores huérfanos si existen
+            echo "🧹 Limpiando contenedores huérfanos..."
+            sudo docker container prune -f || true
+            
+            # Esperar un momento más para asegurar que todo esté limpio
+            sleep 5
+            
+            # Actualizar contenedores
+            echo "🚀 Iniciando contenedores..."
+            $DOCKER_COMPOSE up -d --remove-orphans
+            
+            # Esperar un momento para que los contenedores inicien
+            sleep 10
             
             # Mostrar estado
             echo "📊 Estado de contenedores:"

@@ -35,13 +35,14 @@ jobs:
         id: check-droplets
         run: |
           if [ -f ".github/droplet-ips.json" ]; then
-            FRONTEND_IP=$(jq -r '.frontend' .github/droplet-ips.json)
+            # Intentar obtener IP de app (backend + frontend) o frontend (compatibilidad)
+            FRONTEND_IP=$(jq -r '.app // .frontend' .github/droplet-ips.json)
             if [ "$FRONTEND_IP" != "null" ] && [ -n "$FRONTEND_IP" ]; then
-              echo "✅ DigitalOcean droplet encontrado: $FRONTEND_IP"
+              echo "✅ DigitalOcean droplet encontrado (app-prod): $FRONTEND_IP"
               echo "frontend_ip=$FRONTEND_IP" >> $GITHUB_OUTPUT
               echo "use_digitalocean=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️ No hay IP de frontend en DigitalOcean"
+              echo "⚠️ No hay IP de app/frontend en DigitalOcean"
               echo "use_digitalocean=false" >> $GITHUB_OUTPUT
             fi
           else

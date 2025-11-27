@@ -61,6 +61,24 @@ jobs:
           TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: terraform init
       
+      - name: Check existing droplets
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
+        run: |
+          echo "🔍 Verificando droplets existentes..."
+          terraform init -input=false || true
+          
+          # Intentar importar estado si existe
+          if terraform state list 2>/dev/null | grep -q "digitalocean_droplet"; then
+            echo "✅ Hay droplets en el estado de Terraform"
+            terraform state list | grep "digitalocean_droplet" || true
+          else
+            echo "ℹ️ No hay droplets en el estado de Terraform (primera vez)"
+          fi
+      
       - name: Terraform Plan
         if: steps.check-secrets.outputs.skip != 'true'
         working-directory: ./terraform/digitalocean
@@ -75,7 +93,25 @@ jobs:
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
           TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
-        run: terraform apply -auto-approve tfplan
+        continue-on-error: true
+        run: |
+          terraform apply -auto-approve tfplan || {
+            EXIT_CODE=$?
+            echo "⚠️ Terraform apply falló con código: $EXIT_CODE"
+            echo ""
+            echo "💡 Posibles causas:"
+            echo "  - Límite de droplets alcanzado en DigitalOcean"
+            echo "  - Crédito insuficiente"
+            echo "  - Error de API"
+            echo ""
+            echo "📋 Droplets que se crearon exitosamente:"
+            terraform state list 2>/dev/null | grep "digitalocean_droplet" || echo "Ninguno"
+            echo ""
+            echo "🔍 Para limpiar droplets existentes, ejecuta:"
+            echo "  cd terraform/digitalocean"
+            echo "  terraform destroy"
+            exit $EXIT_CODE
+          }
       
       - name: Get Droplet IPs
         if: steps.check-secrets.outputs.skip != 'true'
@@ -84,40 +120,44 @@ jobs:
         env:
           TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
           TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
+        continue-on-error: true
         run: |
-          # Obtener IPs de los droplets
-          BACKEND_IP=$(terraform output -raw backend_prod_ip)
-          FRONTEND_IP=$(terraform output -raw frontend_prod_ip)
-          METABASE_IP=$(terraform output -raw metabase_prod_ip)
-          SPARK_IP=$(terraform output -raw spark_prod_ip)
-          TEMPORAL_IP=$(terraform output -raw temporal_prod_ip)
-          GRAFANA_PROD_IP=$(terraform output -raw grafana_prod_ip)
-          GRAFANA_STAGING_IP=$(terraform output -raw grafana_staging_ip)
+          # Obtener IPs de los 3 droplets (puede fallar si algunos no se crearon)
+          APP_IP=$(terraform output -raw app_prod_ip 2>/dev/null || echo "")
+          DATA_IP=$(terraform output -raw data_prod_ip 2>/dev/null || echo "")
+          MONITORING_IP=$(terraform output -raw monitoring_prod_ip 2>/dev/null || echo "")
           
-          # Guardar en outputs para otros jobs
-          echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
-          echo "frontend_ip=$FRONTEND_IP" >> $GITHUB_OUTPUT
-          echo "metabase_ip=$METABASE_IP" >> $GITHUB_OUTPUT
-          echo "spark_ip=$SPARK_IP" >> $GITHUB_OUTPUT
-          echo "temporal_ip=$TEMPORAL_IP" >> $GITHUB_OUTPUT
-          echo "grafana_prod_ip=$GRAFANA_PROD_IP" >> $GITHUB_OUTPUT
-          echo "grafana_staging_ip=$GRAFANA_STAGING_IP" >> $GITHUB_OUTPUT
+          # Guardar en outputs para otros jobs (usando app_ip para backend y frontend)
+          echo "app_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "data_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "monitoring_ip=$MONITORING_IP" >> $GITHUB_OUTPUT
+          # Mantener compatibilidad con nombres antiguos
+          echo "backend_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "frontend_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "metabase_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "spark_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "temporal_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "grafana_prod_ip=$MONITORING_IP" >> $GITHUB_OUTPUT
+          echo "grafana_staging_ip=$MONITORING_IP" >> $GITHUB_OUTPUT
           
           # Guardar en un archivo para que otros workflows puedan leerlo
           mkdir -p ${{ github.workspace }}/.github
           cat > ${{ github.workspace }}/.github/droplet-ips.json << EOF
           {
-            "backend": "$BACKEND_IP",
-            "frontend": "$FRONTEND_IP",
-            "metabase": "$METABASE_IP",
-            "spark": "$SPARK_IP",
-            "temporal": "$TEMPORAL_IP",
-            "grafana_prod": "$GRAFANA_PROD_IP",
-            "grafana_staging": "$GRAFANA_STAGING_IP"
+            "app": "$APP_IP",
+            "data": "$DATA_IP",
+            "monitoring": "$MONITORING_IP",
+            "backend": "$APP_IP",
+            "frontend": "$APP_IP",
+            "metabase": "$DATA_IP",
+            "spark": "$DATA_IP",
+            "temporal": "$DATA_IP",
+            "grafana_prod": "$MONITORING_IP",
+            "grafana_staging": "$MONITORING_IP"
           }
           EOF
           
-          echo "✅ Droplet IPs guardados"
+          echo "✅ Droplet IPs guardados (3 droplets: app, data, monitoring)"
       
       - name: Output IPs
         if: steps.check-secrets.outputs.skip != 'true'
@@ -151,12 +191,17 @@ jobs:
           TF_VAR_ssh_key_id: ${{ steps.check-secrets.outputs.ssh_key_id }}
         run: |
           # Guardar IPs como outputs del job para que otros workflows puedan usarlas
-          BACKEND_IP=$(terraform output -raw backend_prod_ip)
-          FRONTEND_IP=$(terraform output -raw frontend_prod_ip)
-          echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
-          echo "frontend_ip=$FRONTEND_IP" >> $GITHUB_OUTPUT
-          echo "metabase_ip=$(terraform output -raw metabase_prod_ip)" >> $GITHUB_OUTPUT
-          echo "spark_ip=$(terraform output -raw spark_prod_ip)" >> $GITHUB_OUTPUT
-          echo "temporal_ip=$(terraform output -raw temporal_prod_ip)" >> $GITHUB_OUTPUT
-          echo "grafana_prod_ip=$(terraform output -raw grafana_prod_ip)" >> $GITHUB_OUTPUT
-          echo "grafana_staging_ip=$(terraform output -raw grafana_staging_ip)" >> $GITHUB_OUTPUT
+          APP_IP=$(terraform output -raw app_prod_ip)
+          DATA_IP=$(terraform output -raw data_prod_ip)
+          MONITORING_IP=$(terraform output -raw monitoring_prod_ip)
+          echo "app_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "data_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "monitoring_ip=$MONITORING_IP" >> $GITHUB_OUTPUT
+          # Mantener compatibilidad con nombres antiguos
+          echo "backend_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "frontend_ip=$APP_IP" >> $GITHUB_OUTPUT
+          echo "metabase_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "spark_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "temporal_ip=$DATA_IP" >> $GITHUB_OUTPUT
+          echo "grafana_prod_ip=$MONITORING_IP" >> $GITHUB_OUTPUT
+          echo "grafana_staging_ip=$MONITORING_IP" >> $GITHUB_OUTPUT

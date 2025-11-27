@@ -36,13 +36,14 @@ jobs:
         id: check-droplets
         run: |
           if [ -f ".github/droplet-ips.json" ]; then
-            BACKEND_IP=$(jq -r '.backend' .github/droplet-ips.json)
+            # Intentar obtener IP de app (backend + frontend) o backend (compatibilidad)
+            BACKEND_IP=$(jq -r '.app // .backend' .github/droplet-ips.json)
             if [ "$BACKEND_IP" != "null" ] && [ -n "$BACKEND_IP" ]; then
-              echo "✅ DigitalOcean droplet encontrado: $BACKEND_IP"
+              echo "✅ DigitalOcean droplet encontrado (app-prod): $BACKEND_IP"
               echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
               echo "use_digitalocean=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️ No hay IP de backend en DigitalOcean"
+              echo "⚠️ No hay IP de app/backend en DigitalOcean"
               echo "use_digitalocean=false" >> $GITHUB_OUTPUT
             fi
           else
@@ -165,8 +166,27 @@ jobs:
             echo "🔨 Construyendo imágenes..."
             $DOCKER_COMPOSE build
             
+            # Detener y remover contenedores antiguos antes de recrear
+            echo "🛑 Deteniendo contenedores existentes..."
+            $DOCKER_COMPOSE down --remove-orphans || true
+            
+            # Esperar a que los contenedores se eliminen completamente
+            echo "⏳ Esperando a que los contenedores se eliminen..."
+            sleep 10
+            
+            # Limpiar contenedores huérfanos si existen
+            echo "🧹 Limpiando contenedores huérfanos..."
+            docker container prune -f || true
+            
+            # Esperar un momento más para asegurar que todo esté limpio
+            sleep 5
+            
+            # Iniciar contenedores
             echo "🚀 Iniciando contenedores..."
-            $DOCKER_COMPOSE up -d
+            $DOCKER_COMPOSE up -d --remove-orphans
+            
+            # Esperar un momento para que los contenedores inicien
+            sleep 10
             
             echo "📊 Estado de contenedores:"
             $DOCKER_COMPOSE ps
