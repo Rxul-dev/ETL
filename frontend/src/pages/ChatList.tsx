@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { chatsApi, usersApi, Chat, User } from '../api/client'
+import { analytics } from '../services/analytics'
 import './ChatList.css'
 
 function ChatList() {
@@ -75,6 +76,7 @@ function ChatList() {
             u.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
       )
       setSearchResults(filtered)
+      analytics.trackUserSearch(searchQuery, filtered.length)
     } catch (err) {
       console.error('Error searching users:', err)
       setSearchResults([])
@@ -122,6 +124,7 @@ function ChatList() {
 
     try {
       const newChat = await chatsApi.create('dm', null, [user.id, otherUserId])
+      analytics.trackChatCreated('dm', newChat.id)
       setShowUserSearch(false)
       setSearchQuery('')
       setSearchResults([])

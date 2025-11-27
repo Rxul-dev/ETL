@@ -1,0 +1,39 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "dependencies": {
+        "@amplitude/analytics-browser": "^2.31.3",
+      },
+    },
+  },
+  "packages": {
+    "@amplitude/analytics-browser": ["@amplitude/analytics-browser@2.31.3", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "@amplitude/plugin-autocapture-browser": "1.18.0", "@amplitude/plugin-network-capture-browser": "1.7.0", "@amplitude/plugin-page-url-enrichment-browser": "0.5.6", "@amplitude/plugin-page-view-tracking-browser": "2.6.3", "@amplitude/plugin-web-vitals-browser": "1.1.0", "tslib": "^2.4.1" } }, "sha512-jGViok5dVYi+4y/OUpH/0+urbba7KK6lmWLJx05TW68ME7lPrZSYO2B1NPzoe6Eym1Rzz6k3njGFR7dtTxcFSQ=="],
+
+    "@amplitude/analytics-connector": ["@amplitude/analytics-connector@1.6.4", "", {}, "sha512-SpIv0IQMNIq6SH3UqFGiaZyGSc7PBZwRdq7lvP0pBxW8i4Ny+8zwI0pV+VMfMHQwWY3wdIbWw5WQphNjpdq1/Q=="],
+
+    "@amplitude/analytics-core": ["@amplitude/analytics-core@2.33.0", "", { "dependencies": { "@amplitude/analytics-connector": "^1.6.4", "tslib": "^2.4.1", "zen-observable-ts": "^1.1.0" } }, "sha512-56m0R12TjZ41D2YIghb/XNHSdL4CurAVyRT3L2FD+9DCFfbgjfT8xhDBnsZtA+aBkb6Yak1EGUojGBunfAm2/A=="],
+
+    "@amplitude/plugin-autocapture-browser": ["@amplitude/plugin-autocapture-browser@1.18.0", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "rxjs": "^7.8.1", "tslib": "^2.4.1" } }, "sha512-hBBZpghTEnl+XF8UZaGxe1xCbSjawdmOkJC0/tQF2k1FwlJS/rdWBGmPd8wH7iU4hd55pnSw28Kd2NL7q0zTcA=="],
+
+    "@amplitude/plugin-network-capture-browser": ["@amplitude/plugin-network-capture-browser@1.7.0", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "tslib": "^2.4.1" } }, "sha512-tlwkBL0tlc1OUTT2XYTjWx4mm6O0DSggKzkkDq+8DhW+ZFl9OfHMFIh/hDLJzxs1LTtX7CvFUfAVSDifJOs+NA=="],
+
+    "@amplitude/plugin-page-url-enrichment-browser": ["@amplitude/plugin-page-url-enrichment-browser@0.5.6", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "tslib": "^2.4.1" } }, "sha512-H6+tf0zYhvM+8oJsdC/kAbIzuxOY/0p+3HBmX4K+G4doo5nCGAB0DYTr6dqMp1GcPOZ09pKT41+DJ6vwSy4ypQ=="],
+
+    "@amplitude/plugin-page-view-tracking-browser": ["@amplitude/plugin-page-view-tracking-browser@2.6.3", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "tslib": "^2.4.1" } }, "sha512-lLU4W2r5jXtfn/14cZKM9c9CQDxT7PVVlgm0susHJ3Kfsua9jJQuMHs4Zlg6rwByAtZi5nF4nYE5z0GF09gx0A=="],
+
+    "@amplitude/plugin-web-vitals-browser": ["@amplitude/plugin-web-vitals-browser@1.1.0", "", { "dependencies": { "@amplitude/analytics-core": "2.33.0", "tslib": "^2.4.1", "web-vitals": "5.0.1" } }, "sha512-TA0X4Np4Wt5hkQ4+Ouhg6nm2xjDd9l03OV9N8Kbe1cqpr/sxvRwSpd+kp2eREbp6D7tHFFkKJA2iNtxbE5Y0cA=="],
+
+    "@types/zen-observable": ["@types/zen-observable@0.8.3", "", {}, "sha512-fbF6oTd4sGGy0xjHPKAt+eS2CrxJ3+6gQ3FGcBoIJR2TLAyCkCyI8JqZNy+FeON0AhVgNJoUumVoZQjBFUqHkw=="],
+
+    "rxjs": ["rxjs@7.8.2", "", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA=="],
+
+    "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
+
+    "web-vitals": ["web-vitals@5.0.1", "", {}, "sha512-BsULPWaCKAAtNntUz0aJq1cu1wyuWmDzf4N6vYNMbYA6zzQAf2pzCYbyClf+Ui2MI54bt225AwugXIfL1W+Syg=="],
+
+    "zen-observable": ["zen-observable@0.8.15", "", {}, "sha512-PQ2PC7R9rslx84ndNBZB/Dkv8V8fZEpk83RLgXtYd0fwUgEjseMn1Dgajh2x6S8QbZAFa9p2qVCEuYZNgve0dQ=="],
+
+    "zen-observable-ts": ["zen-observable-ts@1.1.0", "", { "dependencies": { "@types/zen-observable": "0.8.3", "zen-observable": "0.8.15" } }, "sha512-1h4zlLSqI2cRLPJUHJFL8bCWHhkpuXkF+dbGkRaWjgDIG26DmzyshUMrdV/rL3UnR+mhaX4fRq8LPouq0MYYIA=="],
+  }
+}

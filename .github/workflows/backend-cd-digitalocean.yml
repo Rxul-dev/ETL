@@ -1,0 +1,200 @@
+name: Backend CD - DigitalOcean
+
+on:
+  workflow_run:
+    workflows: ["Terraform Apply"]
+    types:
+      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/backend-cd-digitalocean.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Droplet IPs
+        uses: actions/download-artifact@v4
+        with:
+          name: droplet-ips
+          path: .github
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          allow-no-artifact: true
+      
+      - name: Check if DigitalOcean droplets exist
+        id: check-droplets
+        run: |
+          if [ -f ".github/droplet-ips.json" ]; then
+            BACKEND_IP=$(jq -r '.backend' .github/droplet-ips.json)
+            if [ "$BACKEND_IP" != "null" ] && [ -n "$BACKEND_IP" ]; then
+              echo "✅ DigitalOcean droplet encontrado: $BACKEND_IP"
+              echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
+              echo "use_digitalocean=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ No hay IP de backend en DigitalOcean"
+              echo "use_digitalocean=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Archivo de IPs no encontrado, usando Hetzner si está configurado"
+            echo "use_digitalocean=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check deployment secrets
+        id: check-secrets
+        run: |
+          if [ "${{ steps.check-droplets.outputs.use_digitalocean }}" == "true" ]; then
+            if [ -z "${{ secrets.DO_SSH_KEY }}" ]; then
+              echo "⚠️ DO_SSH_KEY secret is not configured for DigitalOcean deployment."
+              echo "skip=true" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Usando DigitalOcean para deployment"
+              echo "skip=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if [ -z "${{ secrets.HETZNER_HOST }}" ]; then
+              echo "⚠️ HETZNER_HOST secret is not configured. Skipping deployment."
+              echo "skip=true" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Usando Hetzner para deployment"
+              echo "skip=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+      
+      - name: Deploy to DigitalOcean
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-droplets.outputs.use_digitalocean == 'true'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ steps.check-droplets.outputs.backend_ip }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            set -e
+            
+            # Esperar a que el droplet esté completamente listo
+            echo "⏳ Esperando a que el droplet esté listo..."
+            sleep 30
+            
+            # Crear directorio si no existe
+            DEPLOY_DIR="/opt/rxul-chat-backend"
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              echo "📁 Creando directorio $DEPLOY_DIR..."
+              mkdir -p $DEPLOY_DIR
+            fi
+            
+            cd $DEPLOY_DIR
+            
+            # Clonar repositorio solo si no existe
+            if [ ! -d ".git" ]; then
+              echo "📥 Clonando repositorio (primera vez)..."
+              git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
+              cd $DEPLOY_DIR
+            else
+              echo "🔄 Actualizando repositorio..."
+              git fetch origin
+              git pull origin main || {
+                echo "⚠️ Pull falló, intentando merge..."
+                git merge origin/main || echo "⚠️ Merge falló, pero continuando..."
+              }
+            fi
+            
+            # Verificar docker-compose
+            if command -v docker-compose &> /dev/null; then
+              DOCKER_COMPOSE="docker-compose"
+            elif docker compose version &> /dev/null; then
+              DOCKER_COMPOSE="docker compose"
+            else
+              echo "⚠️ docker-compose no encontrado, instalando..."
+              curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              DOCKER_COMPOSE="docker-compose"
+            fi
+            
+            # Verificar Docker
+            if ! command -v docker &> /dev/null; then
+              echo "⚠️ Docker no está instalado, instalando..."
+              apt-get update
+              apt-get install -y ca-certificates curl gnupg lsb-release
+              mkdir -p /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              apt-get update
+              apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            fi
+            
+            # Iniciar Docker si no está corriendo
+            if ! systemctl is-active --quiet docker; then
+              echo "⚠️ Docker no está corriendo, iniciando..."
+              systemctl start docker
+              systemctl enable docker
+            fi
+            
+            # Crear archivo .env si no existe
+            if [ ! -f ".env" ]; then
+              echo "📝 Creando archivo .env..."
+              cat > .env << 'ENVEOF'
+            DB_PASSWORD=CHANGE_ME
+            DATABASE_URL=postgresql+psycopg2://postgres:CHANGE_ME@db:5432/messaging
+            DW_PASSWORD=CHANGE_ME
+            WAREHOUSE_URL=postgresql://postgres:CHANGE_ME@dw:5432/warehouse
+            METABASE_DB_PASSWORD=CHANGE_ME
+            TEMPORAL_TARGET=temporal:7233
+            TEMPORAL_NAMESPACE=default
+            API_BASE_URL=http://api:8000
+            GRAFANA_ADMIN_PASSWORD=ChangeMe123!
+            ENVEOF
+              echo "⚠️ IMPORTANTE: Actualiza las contraseñas en .env"
+            fi
+            
+            # Deploy
+            echo "🔨 Construyendo imágenes..."
+            $DOCKER_COMPOSE build
+            
+            echo "🚀 Iniciando contenedores..."
+            $DOCKER_COMPOSE up -d
+            
+            echo "📊 Estado de contenedores:"
+            $DOCKER_COMPOSE ps
+            
+            echo "✅ Backend desplegado correctamente en DigitalOcean"
+      
+      - name: Deploy to Hetzner (Fallback)
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-droplets.outputs.use_digitalocean != 'true'
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+            DEPLOY_DIR="/opt/rxul-chat-backend"
+            if [ ! -d "$DEPLOY_DIR" ]; then
+              sudo mkdir -p $DEPLOY_DIR
+              sudo chown $USER:$USER $DEPLOY_DIR
+            fi
+            cd $DEPLOY_DIR
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }}.git $DEPLOY_DIR
+            else
+              git fetch origin
+              git pull origin main || git merge origin/main || true
+            fi
+            if command -v docker-compose &> /dev/null; then
+              DOCKER_COMPOSE="docker-compose"
+            else
+              DOCKER_COMPOSE="docker compose"
+            fi
+            $DOCKER_COMPOSE build
+            $DOCKER_COMPOSE up -d
+            $DOCKER_COMPOSE ps
+

@@ -1,0 +1,126 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform-apply.yml'
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check Terraform secrets
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.DO_TOKEN }}" ]; then
+            echo "⚠️ DO_TOKEN secret is not configured. Skipping Terraform apply."
+            echo "To enable Terraform, configure the following secrets in GitHub:"
+            echo "  - DO_TOKEN (DigitalOcean API token)"
+            echo "  - DO_SSH_KEY_ID (SSH key ID in DigitalOcean)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Terraform
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+      
+      - name: Terraform Init
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+        run: terraform init
+      
+      - name: Terraform Plan
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+        run: terraform plan -out=tfplan
+      
+      - name: Terraform Apply
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+        run: terraform apply -auto-approve tfplan
+      
+      - name: Get Droplet IPs
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: terraform-output
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+        run: |
+          # Obtener IPs de los droplets
+          BACKEND_IP=$(terraform output -raw backend_prod_ip)
+          FRONTEND_IP=$(terraform output -raw frontend_prod_ip)
+          METABASE_IP=$(terraform output -raw metabase_prod_ip)
+          SPARK_IP=$(terraform output -raw spark_prod_ip)
+          TEMPORAL_IP=$(terraform output -raw temporal_prod_ip)
+          GRAFANA_PROD_IP=$(terraform output -raw grafana_prod_ip)
+          GRAFANA_STAGING_IP=$(terraform output -raw grafana_staging_ip)
+          
+          # Guardar en outputs para otros jobs
+          echo "backend_ip=$BACKEND_IP" >> $GITHUB_OUTPUT
+          echo "frontend_ip=$FRONTEND_IP" >> $GITHUB_OUTPUT
+          echo "metabase_ip=$METABASE_IP" >> $GITHUB_OUTPUT
+          echo "spark_ip=$SPARK_IP" >> $GITHUB_OUTPUT
+          echo "temporal_ip=$TEMPORAL_IP" >> $GITHUB_OUTPUT
+          echo "grafana_prod_ip=$GRAFANA_PROD_IP" >> $GITHUB_OUTPUT
+          echo "grafana_staging_ip=$GRAFANA_STAGING_IP" >> $GITHUB_OUTPUT
+          
+          # Guardar en un archivo para que otros workflows puedan leerlo
+          mkdir -p ${{ github.workspace }}/.github
+          cat > ${{ github.workspace }}/.github/droplet-ips.json << EOF
+          {
+            "backend": "$BACKEND_IP",
+            "frontend": "$FRONTEND_IP",
+            "metabase": "$METABASE_IP",
+            "spark": "$SPARK_IP",
+            "temporal": "$TEMPORAL_IP",
+            "grafana_prod": "$GRAFANA_PROD_IP",
+            "grafana_staging": "$GRAFANA_STAGING_IP"
+          }
+          EOF
+          
+          echo "✅ Droplet IPs guardados"
+      
+      - name: Output IPs
+        if: steps.check-secrets.outputs.skip != 'true'
+        working-directory: ./terraform/digitalocean
+        env:
+          TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+          TF_VAR_ssh_key_id: ${{ secrets.DO_SSH_KEY_ID }}
+        run: |
+          echo "## 🚀 Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Droplet IPs:" >> $GITHUB_STEP_SUMMARY
+          terraform output -json | jq -r 'to_entries[] | "- **\(.key)**: \(.value.value)"' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Wait for droplets to be ready (~2-3 minutes)" >> $GITHUB_STEP_SUMMARY
+          echo "2. Backend and Frontend CD workflows will deploy automatically" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload Droplet IPs
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: droplet-ips
+          path: .github/droplet-ips.json
+          retention-days: 30

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { messagesApi, chatsApi, reactionsApi, bookingsApi, Message, Chat, Reaction, Booking } from '../api/client'
 import { WebSocketService } from '../services/websocket'
+import { analytics } from '../services/analytics'
 import './ChatRoom.css'
 
 function ChatRoom() {
@@ -85,7 +86,9 @@ function ChatRoom() {
         console.error('WebSocket error:', error)
       })
 
-      ws.connect(Number(chatId), user.id).catch((err) => {
+      ws.connect(Number(chatId), user.id).then(() => {
+        analytics.trackWebSocketConnected(Number(chatId))
+      }).catch((err) => {
         console.error('Failed to connect WebSocket:', err)
       })
     }
@@ -95,7 +98,10 @@ function ChatRoom() {
       const currentChatId = Number(chatId)
       if (wsServiceRef.current && wsServiceRef.current.chatId === currentChatId) {
         try {
-          wsServiceRef.current.disconnect()
+          if (wsServiceRef.current.chatId) {
+          analytics.trackWebSocketDisconnected(wsServiceRef.current.chatId)
+        }
+        wsServiceRef.current.disconnect()
         } catch (error) {
           // Ignorar errores al desconectar (puede estar ya cerrado)
           console.warn('Error disconnecting WebSocket (ignored):', error)
@@ -120,6 +126,7 @@ function ChatRoom() {
     setSending(true)
     try {
       await messagesApi.send(Number(chatId), newMessage, user.id)
+      analytics.trackMessageSent(Number(chatId), newMessage.length, false) // TODO: agregar tracking de reply cuando se implemente
       setNewMessage('')
       
       // Detectar si el mensaje contiene palabras clave de booking
@@ -147,7 +154,8 @@ function ChatRoom() {
               const messagesResponse = await messagesApi.list(Number(chatId), 1, 1)
               if (messagesResponse.items.length > 0) {
                 const lastMessage = messagesResponse.items[0]
-                await bookingsApi.create(lastMessage.id, user.id, Number(chatId))
+                const booking = await bookingsApi.create(lastMessage.id, user.id, Number(chatId))
+                analytics.trackBookingCreated(booking.id, booking.booking_type || 'room')
                 alert('✅ Booking creado automáticamente')
               }
             } catch (bookingErr) {

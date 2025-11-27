@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { usersApi } from '../api/client'
+import { analytics } from '../services/analytics'
 import './Login.css'
 
 function Login() {
@@ -28,12 +29,18 @@ function Login() {
           handle: existingUser.handle,
           display_name: existingUser.display_name,
         })
+        analytics.trackLogin(existingUser.id.toString(), 'existing')
         navigate('/chats')
       } else {
         // Si no existe, crear un nuevo usuario
         const user = await usersApi.create(handle, displayName)
         login({
           id: user.id,
+          handle: user.handle,
+          display_name: user.display_name,
+        })
+        analytics.trackLogin(user.id.toString(), 'new')
+        analytics.setUserProperties({
           handle: user.handle,
           display_name: user.display_name,
         })
