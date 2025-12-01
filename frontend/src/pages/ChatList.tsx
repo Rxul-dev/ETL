@@ -19,6 +19,7 @@ function ChatList() {
   const logout = useAuthStore((state) => state.logout)
 
   useEffect(() => {
+    analytics.trackPageView('ChatList')
     loadChats()
   }, [])
 
@@ -108,6 +109,7 @@ function ChatList() {
               u.display_name.toLowerCase().includes(searchQuery.toLowerCase()))
         )
         setSearchResults(filtered)
+        analytics.trackUserSearch(searchQuery, filtered.length)
       } catch (err) {
         console.error('Error searching users:', err)
         setSearchResults([])
@@ -136,6 +138,7 @@ function ChatList() {
   }
 
   const handleChatClick = (chatId: number) => {
+    analytics.track('Chat Selected', { chat_id: chatId })
     navigate(`/chats/${chatId}`)
   }
 

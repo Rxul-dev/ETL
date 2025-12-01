@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { usersApi } from '../api/client'
@@ -12,6 +12,10 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
+
+  useEffect(() => {
+    analytics.trackPageView('Login')
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

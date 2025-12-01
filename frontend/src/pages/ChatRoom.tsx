@@ -26,6 +26,8 @@ function ChatRoom() {
   useEffect(() => {
     if (!chatId || !user) return
 
+    analytics.trackPageView('ChatRoom', { chatId: Number(chatId) })
+
     const loadChat = async () => {
       try {
         const chatData = await chatsApi.get(Number(chatId))
@@ -185,6 +187,7 @@ function ChatRoom() {
       if (existingReaction) {
         // Remover reacción
         await reactionsApi.remove(messageId, emoji, user.id)
+        analytics.track('Reaction Removed', { message_id: messageId, emoji })
         setMessageReactions(prev => {
           const newMap = new Map(prev)
           const updatedReactions = (newMap.get(messageId) || []).filter(
@@ -196,6 +199,7 @@ function ChatRoom() {
       } else {
         // Agregar reacción
         await reactionsApi.add(messageId, emoji, user.id)
+        analytics.trackReactionAdded(messageId, emoji)
         const reactionsResponse = await reactionsApi.list(messageId, 1, 50)
         setMessageReactions(prev => {
           const newMap = new Map(prev)

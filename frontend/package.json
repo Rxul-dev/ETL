@@ -15,7 +15,8 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
     "axios": "^1.6.2",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "@amplitude/analytics-browser": "^2.10.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

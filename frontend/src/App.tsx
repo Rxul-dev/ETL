@@ -1,8 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Login'
 import ChatList from './pages/ChatList'
 import ChatRoom from './pages/ChatRoom'
+import * as analytics from './services/analytics'
 import './App.css'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -11,6 +13,16 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Inicializar Amplitude cuando la app carga
+    const AMPLITUDE_API_KEY = import.meta.env.VITE_AMPLITUDE_API_KEY
+    if (AMPLITUDE_API_KEY) {
+      console.log('✅ Amplitude inicializado correctamente')
+    } else {
+      console.warn('⚠️ VITE_AMPLITUDE_API_KEY no configurada. Analytics no funcionará.')
+    }
+  }, [])
+
   return (
     <Router
       future={{
