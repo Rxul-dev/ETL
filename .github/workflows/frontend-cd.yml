@@ -51,14 +51,21 @@ jobs:
       - name: Build
         if: steps.check-secrets.outputs.skip != 'true'
         working-directory: ./frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_AMPLITUDE_API_KEY: ${{ secrets.VITE_AMPLITUDE_API_KEY }}
         run: |
           # Solo exportar VITE_API_URL si está definido y no está vacío
           # Si no está definido, el código usará la IP pública de la VM por defecto
-          if [ -n "${{ secrets.VITE_API_URL }}" ]; then
-            export VITE_API_URL="${{ secrets.VITE_API_URL }}"
+          if [ -n "$VITE_API_URL" ]; then
             echo "Building with VITE_API_URL=$VITE_API_URL"
           else
             echo "Building without VITE_API_URL - will use default VM IP (91.98.64.119:8000)"
+          fi
+          if [ -n "$VITE_AMPLITUDE_API_KEY" ]; then
+            echo "Building with VITE_AMPLITUDE_API_KEY configured"
+          else
+            echo "⚠️ VITE_AMPLITUDE_API_KEY not configured - Analytics will not work"
           fi
           npm run build
       
